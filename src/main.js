@@ -26,7 +26,9 @@ SET.look = unpackLook(SET.look);
 const save = () => localStorage.setItem('dwg', JSON.stringify(SET));
 const keyName = code => code.replace(/^Key|^Digit/, '').replace(/^Arrow/, '').replace('Left', ' L').replace('Right', ' R').replace(/^Numpad/, 'Num ').trim();
 const rnd = (a, b) => a + Math.random() * (b - a), pick = a => a[Math.floor(Math.random() * a.length)], hexOf = l => '#' + PALETTE[l.body][1].toString(16).padStart(6, '0');
-const ACTS = ['', 'swing', 'throw', 'use', 'shush', 'wave', 'cheer', 'dance'];
+const ACTS = ['', 'swing', 'throw', 'use', 'shush', 'wave', 'cheer', 'dance', 'pump', 'point', 'laugh', 'clap', 'facepalm', 'flex', 'sit', 'bow', 'cry'];
+const EMOTES = ['point', 'laugh', 'clap', 'facepalm', 'flex', 'sit', 'bow', 'cry'];   // keys 1 to 8
+const lineOf = cat => { const i = Math.floor(Math.random() * LINES[cat].length); return { line: LINES[cat][i], v: cat + '_' + i }; };   // what he says, and which recording it is
 
 // ---------------------------------------------------------------- renderer, scene, lights
 const canvas = $('c'), renderer = new THREE.WebGLRenderer({ canvas, antialias: SET.quality !== 'low', powerPreference: 'high-performance' });
@@ -90,7 +92,7 @@ function hostTick(dt) {
     if (D.v && it.x < HOUSE.x0 - 1.6 && (it.rest || it.holders.length)) { G.bank += D.v; G.stats.loot++; const by = it.holders[0] || it.last; items.remove(it.id); ev({ k: 'bank', id: it.id, v: D.v, by, total: G.bank }); continue; }
     if (it.holders.length) { const h = players.get(it.holders[0]); if (h && (h.speed || 0) > 1) { if (D.w > it.holders.length) grandpa.noise(2.4 * dt, it.x, it.z); if (D.chatter) grandpa.noise(3 * dt, it.x, it.z); } }
   }
-  if (grandpa.state === 'sleep' && (G.said -= dt) <= 0) { G.said = rnd(16, 30); ev({ k: 'g', e: 'dream', line: pick(LINES.dream) }); }                       // talking in his sleep
+  if (grandpa.state === 'sleep' && (G.said -= dt) <= 0) { G.said = rnd(16, 30); ev({ k: 'g', e: 'dream', ...lineOf('dream') }); }                       // talking in his sleep
   // the Roomba does its round
   for (const r of G.roombas) {
     if ((r.stun -= dt) > 0) { r.yaw += dt * 9; continue; }
@@ -134,18 +136,18 @@ function doAct(pid, k, d) {
   else if (k === 'use') {
     const it = items.list.get(d.id); if (!it || !it.holders.includes(pid)) return; const how = ITEMS[it.kind].use;
     if (how === 'banana') { items.remove(it.id); ev({ k: 'gone', id: it.id, why: 'eat', x: it.x, y: it.y, z: it.z }); ev({ k: 'add', item: [G.nextId++, 'peel', +p.x.toFixed(1), +house.standAt(p.x, p.z, p.y + 0.5).toFixed(2), +p.z.toFixed(1)] }); }
-    else if (how === 'horn') { grandpa.noise(50, p.x, p.z); ev({ k: 'horn', x: p.x, y: p.y + 1, z: p.z, by: pid }); if (grandpa.up) ev({ k: 'g', e: 'shout', line: pick(LINES.horn) }); }
+    else if (how === 'horn') { grandpa.noise(50, p.x, p.z); ev({ k: 'horn', x: p.x, y: p.y + 1, z: p.z, by: pid }); if (grandpa.up) ev({ k: 'g', e: 'shout', ...lineOf('horn') }); }
     else if (how === 'lullaby') { if (grandpa.asleep) grandpa.meter = Math.max(0, grandpa.meter - 40); items.remove(it.id); ev({ k: 'gone', id: it.id, why: 'used', x: it.x, y: it.y, z: it.z }); ev({ k: 'lullaby', x: p.x, y: p.y + 1, z: p.z, by: pid }); }
-    else if (how === 'remote') { grandpa.noise(30, house.tv.x, house.tv.z); ev({ k: 'tv', by: pid }); if (grandpa.up) ev({ k: 'g', e: 'shout', line: pick(LINES.tv) }); }
+    else if (how === 'remote') { grandpa.noise(30, house.tv.x, house.tv.z); ev({ k: 'tv', by: pid }); if (grandpa.up) ev({ k: 'g', e: 'shout', ...lineOf('tv') }); }
   }
   else if (k === 'buy') { const u = UPGRADES.find(q => q.id === d.id), lvl = G.up[d.id] || 0; if (!u || G.phase !== 'shop' || lvl >= u.max || G.money < u.cost * (lvl + 1)) return; G.money -= u.cost * (lvl + 1); G.up[d.id] = lvl + 1; ev({ k: 'bought', id: d.id, by: pid, up: G.up, money: G.money }); }
 }
 function hostWire() {
   grandpa.onEvent = (kind, d) => {
-    if (kind === 'slam') { G.stats.squished += 0; ev({ k: 'g', e: 'slam', x: d.x, z: d.z, hit: d.hit, line: d.hit.length ? pick(LINES.hit) : pick(LINES.miss) }); }
-    else if (kind === 'wake') { G.stats.wakes++; ev({ k: 'g', e: 'wake', line: pick(LINES.wake) }); }
-    else if (kind === 'slip') { const it = items.list.get(d.id); items.remove(d.id); ev({ k: 'gone', id: d.id, why: 'slip', x: d.x, y: 0.2, z: d.z }); ev({ k: 'g', e: 'slip', line: pick(LINES.slip) }); }
-    else ev({ k: 'g', e: kind, x: d.x, z: d.z, line: kind === 'mumble' ? pick(LINES.mumble) : kind === 'miss' ? pick(LINES.miss) : kind === 'asleep' || kind === 'giveup' ? pick(LINES.sleep) : '' });
+    if (kind === 'slam') { G.stats.squished += 0; ev({ k: 'g', e: 'slam', x: d.x, z: d.z, hit: d.hit, ...lineOf(d.hit.length ? 'hit' : 'miss') }); }
+    else if (kind === 'wake') { G.stats.wakes++; ev({ k: 'g', e: 'wake', ...lineOf('wake') }); }
+    else if (kind === 'slip') { const it = items.list.get(d.id); items.remove(d.id); ev({ k: 'gone', id: d.id, why: 'slip', x: d.x, y: 0.2, z: d.z }); ev({ k: 'g', e: 'slip', ...lineOf('slip') }); }
+    else ev({ k: 'g', e: kind, x: d.x, z: d.z, ...(kind === 'mumble' ? lineOf('mumble') : kind === 'miss' ? lineOf('miss') : kind === 'giveup' ? lineOf('sleep') : {}) });
   };
   items.onRest = it => { if (isHost && net) net.send({ type: 'ev', k: 'rest', id: it.id, p: [+it.x.toFixed(2), +it.y.toFixed(2), +it.z.toFixed(2)] }); };
 }
@@ -193,19 +195,19 @@ function handleEv(d) {
 }
 function grandpaEvent(d) {
   const m = grandpa.mouthPos, e = d.e;
-  const gd = Math.hypot(m.x - player.pos.x, m.z - player.pos.z), say = (line, loud, n) => { if (!sound.say(line, loud, gd)) sound.speak(m, loud, n); };   // real words if the PC can speak, grumbling noises if not
-  if (e === 'mumble' || e === 'dream') { say(d.line, false, 3 + Math.floor(Math.random() * 3)); bubble(d.line, false); }
-  else if (e === 'wake') { sound.roar(m); setTimeout(() => say(d.line, true, 5), 500); bubble(d.line, true); banner('HE\'S AWAKE!', 'Hide under something. Watch for the slipper.', '#ff5d73'); me.shake = 1; }
+  const say = (v, loud, n) => { if (!v || !sound.say(v, loud, m)) sound.speak(m, loud, n); };   // his recorded voice, or grumbling noises if the recording is missing
+  if (e === 'mumble' || e === 'dream') { say(d.v, false, 3 + Math.floor(Math.random() * 3)); bubble(d.line, false); if (e === 'mumble') grandpa.emote('fly'); }
+  else if (e === 'wake') { sound.roar(m); setTimeout(() => say(d.v, true, 5), 700); bubble(d.line, true); banner('HE\'S AWAKE!', 'Hide under something. Watch for the slipper.', '#ff5d73'); me.shake = 1; }
   else if (e === 'windup') { sound.swing(); sound.speak(m, true, 1); }
   else if (e === 'slam') {
-    sound.slam({ x: d.x, y: 0, z: d.z }); fx.shock(d.x, house.standAt(d.x, d.z, 40), d.z, 5); const dist = Math.hypot(d.x - player.pos.x, d.z - player.pos.z); me.shake = Math.max(me.shake, clamp(1.3 - dist / 40, 0, 1.2)); if (d.line) { bubble(d.line, true); say(d.line, true, 2); }
+    sound.slam({ x: d.x, y: 0, z: d.z }); fx.shock(d.x, house.standAt(d.x, d.z, 40), d.z, 5); const dist = Math.hypot(d.x - player.pos.x, d.z - player.pos.z); me.shake = Math.max(me.shake, clamp(1.3 - dist / 40, 0, 1.2)); if (d.line) { bubble(d.line, true); say(d.v, true, 2); } grandpa.emote(d.hit.length ? 'laugh' : 'tantrum');
     for (const id of d.hit) { const p = players.get(id); if (p && id !== myId) { p.flat = true; sound.squish(p); } }
     if (d.hit.includes(myId)) { if (G.up.helmet && !me.helmet) { me.helmet = true; player.knock(rnd(-9, 9), 11, rnd(-9, 9), 1.8); toast('🪖 The colander took it! It is now a flat colander.', 'egg'); sound.thing('pan', player.pos); } else flatten(); }
     else if (dist < 9 && !player.flat) player.knock((player.pos.x - d.x) / (dist || 1) * 7, 6, (player.pos.z - d.z) / (dist || 1) * 7, 1.1);   // the shockwave
   }
-  else if (e === 'slip') { sound.crash({ x: grandpa.x, y: 2, z: grandpa.z }); sound.whee(m); bubble(d.line, true); say(d.line, true, 3); me.shake = 1.4; fx.shock(grandpa.x, 0, grandpa.z, 9); toast('🍌 GRANDPA SLIPPED ON THE BANANA!', 'egg'); }
-  else if (e === 'miss' || e === 'shout') { say(d.line, true, 3); if (d.line) bubble(d.line, true); }
-  else if (e === 'giveup') { say(d.line, false, 4); bubble(d.line, false); }
+  else if (e === 'slip') { sound.crash({ x: grandpa.x, y: 2, z: grandpa.z }); sound.whee(m); bubble(d.line, true); say(d.v, true, 3); me.shake = 1.4; fx.shock(grandpa.x, 0, grandpa.z, 9); toast('🍌 GRANDPA SLIPPED ON THE BANANA!', 'egg'); }
+  else if (e === 'miss' || e === 'shout') { say(d.v, true, 3); if (d.line) bubble(d.line, true); }
+  else if (e === 'giveup') { say(d.v, false, 4); bubble(d.line, false); grandpa.emote('shrug'); }
   else if (e === 'asleep') { sound.yawn(m); toast('😴 He\'s gone back to sleep.', 'good'); }
 }
 function flatten() { player.flatten(); dropHeld([0, 2, 0]); sound.squish(player.pos); show('flat'); act('flat'); me.soloFlat = 7; $('flat-tip').textContent = players.size > 1 ? 'A friend can pump you back up. You can still wriggle about.' : me.soloLives > 0 ? 'Hang on... re-inflating.' : 'No puff left.'; }
@@ -267,8 +269,9 @@ function updateBeans(dt) {
     if (!p.pieM) { p.pieM = new THREE.Mesh(new THREE.SphereGeometry(0.42, 12, 10), toon(0xffffff)); p.pieM.scale.set(1, 1, 0.4); p.pieM.position.set(0, p.bean.H * 0.72 + p.bean.legL, 0.5); p.bean.root.add(p.pieM); } p.pieM.visible = !!(f & 2048);
     _fwd.set(-Math.sin(p.yaw), 0, -Math.cos(p.yaw)); _look.set(-Math.sin(p.yaw) * Math.cos(p.pitch), Math.sin(p.pitch), -Math.cos(p.yaw) * Math.cos(p.pitch));
     p.talk = Math.max(clamp((voice?.level(p.id) || 0) * 7, 0, 1), p.tl || 0); p.cheer = Math.max(0, (p.cheer || 0) - dt);
-    const held = [...items.list.values()].find(i => i.holders.includes(p.id)), heavy = held && ITEMS[held.kind].w > 1;
-    p.bean.update(dt, { speed: p.speed, sprint: !!(f & 2), crouch: !!(f & 1), air: !!(f & 4), vy: p.vy, act: p.cheer > 0 ? 'cheer' : ACTS[p.act] || '', actK: p.actK, dance: p.dance, carry: held ? (heavy ? 2 : ACTS[p.act] === 'swing' || ACTS[p.act] === 'throw' ? 0 : 1) : 0, talk: p.talk, look: _look, fwd: _fwd, rag: f & 32 ? { rx: p.rx, rz: p.rz } : null, flat: !!(f & 16) || p.flat, scared, covered: !!(f & 64), dizzy: !!(f & 512), stuck: !!(f & 16384) });
+    const held = [...items.list.values()].find(i => i.holders.includes(p.id)), heavy = held && ITEMS[held.kind].w > 1, busy = ACTS[p.act] === 'swing' || ACTS[p.act] === 'throw';
+    p.bean.update(dt, { speed: p.speed, sprint: !!(f & 2), crouch: !!(f & 1), air: !!(f & 4), vy: p.vy, act: p.cheer > 0 ? 'cheer' : ACTS[p.act] || '', actK: p.actK, dance: p.dance, carry: !held ? 0 : held.holders.length > 1 ? 3 : heavy ? 2 : busy ? 0 : held.tool ? 1 : 3, talk: p.talk, look: _look, fwd: _fwd, rag: f & 32 ? { rx: p.rx, rz: p.rz } : null, flat: !!(f & 16) || p.flat, scared, covered: !!(f & 64), dizzy: !!(f & 512), stuck: !!(f & 16384) });
+    p.hand = p.bean.hand.getWorldPosition(p.hand || new THREE.Vector3()); p.arm = p.bean.arms[1].g.getWorldPosition(p.arm || new THREE.Vector3()).sub(p.hand).negate().normalize(); p.top = p.y + p.bean.topY * p.bean.root.scale.y;
     // what has been done to them: balloons overhead, an alarm clock on their back
     if (!p.extras) { p.extras = {}; for (const [k, y, z, sc] of [['helium', p.bean.h * 0.9, 0, 0.8], ['alarm', p.bean.h * 0.45, -0.5, 0.42]]) { const m = new THREE.Mesh(itemGeo(k), toyMat); m.position.set(0, y, z); m.scale.setScalar(sc); p.bean.root.add(m); p.extras[k] = m; } }
     p.extras.helium.visible = !!(f & 4096); p.extras.helium.rotation.z = Math.sin(time * 3) * 0.2; p.extras.alarm.visible = !!(f & 8192); p.extras.alarm.rotation.z = Math.sin(time * 40) * 0.25; if (f & 8192 && Math.random() < dt * 6) fx.stars(p.x, p.y + 1.6, p.z);
@@ -284,7 +287,7 @@ function interact(dt) {
   if (!player.flat && !player.rag) {
     // a flat friend to pump up comes first
     let friend = null, fd = 2.8; for (const p of players.values()) if (p.id !== myId && p.flat) { const d = Math.hypot(p.x - P.x, p.z - P.z); if (d < fd && Math.abs(p.y - P.y) < 2) { fd = d; friend = p; } }
-    if (friend) { prompt = `<kbd>E</kbd>Hold to pump up ${esc(friend.name)}`; key = 'pump' + friend.id; hold = 2.2; if (E) { const before = Math.floor(me.holdT / 0.4); me.holdT = me.holdKey === key ? me.holdT + dt : 0; me.holdKey = key; if (Math.floor(me.holdT / 0.4) !== before) { sound.pump(friend, me.holdT / hold); friend.bean?.kick(4); me.act = 'use'; me.actT = 0.3; } if (me.holdT >= hold) { me.holdT = 0; act('pump', { tgt: friend.id }); } } else me.holdT = 0; }
+    if (friend) { prompt = `<kbd>E</kbd>Hold to pump up ${esc(friend.name)}`; key = 'pump' + friend.id; hold = 2.2; if (E) { const before = Math.floor(me.holdT / 0.4); me.holdT = me.holdKey === key ? me.holdT + dt : 0; me.holdKey = key; if (Math.floor(me.holdT / 0.4) !== before) { sound.pump(friend, me.holdT / hold); friend.bean?.kick(4); me.act = 'pump'; me.actT = 0.5; } if (me.holdT >= hold) { me.holdT = 0; act('pump', { tgt: friend.id }); } } else me.holdT = 0; }
     else if (!held) { const it = items.nearest(P.x, P.y, P.z, fxd, fzd, 3.0); if (it) { const D = ITEMS[it.kind]; prompt = `<kbd>E</kbd>${it.holders.length ? 'Help carry' : 'Grab'} the ${D.name}${D.v ? ` <b style="color:#1f8a4c">$${D.v}</b>` : ''}${D.w > 1 ? ` <small>(heavy: ${D.w} beans)</small>` : ''}`; if (input.hit('KeyE')) act('grab', { id: it.id }); } me.holdT = 0; }
     else { me.holdT = 0; if (input.hit('KeyQ') || input.hit('KeyE')) { dropHeld([fxd * 1.5, 1, fzd * 1.5]); } }
   }
@@ -375,7 +378,8 @@ function frame(dt) {
   me.actT -= dt; if (me.actT <= 0 && me.swing <= 0) me.act = '';
   if (ctl && !player.flat && !player.rag) {
     if (input.hit('KeyF')) { me.light = !me.light; sound.play('metalClick', { vol: 0.5, rate: me.light ? 1.2 : 0.9 }); }
-    if (input.hit('KeyG')) me.dance = (me.dance + 1) % 4; if (K.KeyG) { me.act = 'dance'; me.actT = 0.2; }
+    if (input.hit('KeyG')) me.dance = (me.dance + 1) % 8; if (K.KeyG) { me.act = 'dance'; me.actT = 0.2; }
+    EMOTES.forEach((e, i) => { if (input.hit('Digit' + (i + 1))) { me.act = e; me.actT = e === 'sit' ? 4 : 2.2; } }); if (EMOTES.includes(me.act) && player.speed > 1.5) me.actT = 0;
     if (input.hit('KeyT')) { me.act = 'shush'; me.actT = 1.2; sound.shush(); net?.send({ type: 'emote', e: 'shush' }); }
     if (K.KeyZ) { me.act = 'wave'; me.actT = 0.2; }
     if (input.hit('KeyH')) { SET.help = !SET.help; save(); show('help', SET.help); }
@@ -392,7 +396,7 @@ function frame(dt) {
   // ---- the world
   if (isHost) hostTick(dt); else if (night) G.t += dt;
   updateBeans(dt);
-  const who = new Map(); for (const p of players.values()) who.set(p.id, p.id === myId ? { x: P.x, y: P.y, z: P.z, yaw: me.lookYaw, pitch: me.lookPitch, swing: me.swing, mine: true, eye: player.eye } : { x: p.x, y: p.y, z: p.z, yaw: p.yaw, pitch: p.pitch, swing: ACTS[p.act] === 'swing' ? p.actK : 0 });
+  const who = new Map(); for (const p of players.values()) who.set(p.id, p.id === myId ? { x: P.x, y: P.y, z: P.z, yaw: me.lookYaw, pitch: me.lookPitch, swing: me.swing, mine: true, eye: player.eye, top: P.y + player.eye + 0.35 } : { x: p.x, y: p.y, z: p.z, yaw: p.yaw, pitch: p.pitch, swing: ACTS[p.act] === 'swing' ? p.actK : 0, hand: p.hand, arm: p.arm, top: p.top });
   items.update(dt, who);
   grandpa.update(dt, [...players.values()].filter(p => !p.flat));
   updateRoombas(dt);

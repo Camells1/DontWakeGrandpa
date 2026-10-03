@@ -22,6 +22,7 @@ export class House {
     this.cells = new Map(); this.parts = new Map(); this.R = rng(4242);
     this.spots = []; this.toolSpots = []; this.creaks = []; this.ramps = [];
     this._floors(); this._walls(); this._living(); this._kitchen(); this._den(); this._paths();
+    this._walkGrid();
     for (const [key, list] of this.parts) { const m = new THREE.Mesh(merge(list), toyMat), g = new THREE.Group(); m.castShadow = m.receiveShadow = true; g.add(m); this.group.add(g); addOutline(g, 0.0024); }   // a dark ink line round everything
     this.parts.clear();
   }
@@ -195,17 +196,17 @@ export class House {
     this._add('a', cyl(5.4, 5.4, 0.16, ax, 30.2, az - 9, C(0xf5f0e0))); for (let k = 0; k < 9; k++) this._add('a', ball(0.9, ax - 8 + k * 2, 2.5, az + 10.1, C(0xa878cf), [1, 1.3, 0.5]));          // a doily, and a frill
     this.chairBlock = this.addCollider({ x: ax, z: az + 1, r: 8, top: 40, bottom: 9, walk: false });   // Grandpa himself, while he sits
     // ---- side table by his elbow: hearing aid, glasses, a mug of cold tea
-    const sx = ax + 19, sz = az - 2; this.table(0xbd7f45, sx, sz, 11, 11, 13);
+    const sx = ax - 20, sz = az - 4; this.table(0xbd7f45, sx, sz, 11, 11, 13);
     this.post(0xf5e8c6, sx + 2.4, 13, sz - 2.6, 1.7, 3.4, { walk: true }); this._add('a', torus(1.1, 0.3, sx + 4.4, 14.8, sz - 2.6, C(0xf5e8c6), 0)); this._add('a', cyl(1.45, 1.45, 0.1, sx + 2.4, 16.2, sz - 2.6, C(0x8a5a36)));
     this.sideTable = { x: sx, y: 13, z: sz };
-    this.slope(0xffc93c, sx + 4, sz + 30, 0, sx + 2, sz + 5, 13, 3.4, { ticks: true });        // a long ruler up to it
+    this.slope(0xffc93c, sx - 1, sz - 27, 0, sx - 1, sz - 5, 13, 3.4, { ticks: true });        // a long ruler up to it
     this.spot(sx - 2.5, 13, sz + 2.5, 2);
     // ---- floor lamp behind the chair
-    this.post(0x474c66, ax - 18, 0, az - 9, 2.6, 0.8); this.post(0x474c66, ax - 18, 0.8, az - 9, 0.5, 34); this._add('a', cyl(4, 7, 8, ax - 18, 38, az - 9, C(0xffe9a8))); this._add('a', torus(7, 0.35, ax - 18, 34.1, az - 9, C(0xe5484d))); this._add('a', torus(4, 0.3, ax - 18, 41.9, az - 9, C(0xe5484d))); this._add('a', cyl(0.08, 0.08, 5, ax - 15.5, 31.5, az - 9, C(0xffc93c))); this.blob(0xffc93c, ax - 15.5, 28.8, az - 9, 0.5);
-    this.lamp = { x: ax - 18, y: 34, z: az - 9 };
+    this.post(0x474c66, ax + 18, 0, az - 9, 2.6, 0.8); this.post(0x474c66, ax + 18, 0.8, az - 9, 0.5, 34); this._add('a', cyl(4, 7, 8, ax + 18, 38, az - 9, C(0xffe9a8))); this._add('a', torus(7, 0.35, ax + 18, 34.1, az - 9, C(0xe5484d))); this._add('a', torus(4, 0.3, ax + 18, 41.9, az - 9, C(0xe5484d))); this._add('a', cyl(0.08, 0.08, 5, ax + 20.5, 31.5, az - 9, C(0xffc93c))); this.blob(0xffc93c, ax + 20.5, 28.8, az - 9, 0.5);
+    this.lamp = { x: ax + 18, y: 34, z: az - 9 };
     // ---- coffee table on the rug: the remote lives here, next to the biscuit plate
-    const cx = -40, cz = 14; this.table(0xd9a45a, cx, cz, 24, 13, 7.5, { leg: 0x8a5a36 });
-    this.slope(0x35c4b0, cx - 21, cz + 1, 0, cx - 11.5, cz + 1, 7.5, 3.6);                     // a leaning book
+    const cx = -40, cz = 24; this.table(0xd9a45a, cx, cz, 20, 13, 7.5, { leg: 0x8a5a36 });
+    this.slope(0x35c4b0, cx + 4, cz + 17, 0, cx + 4, cz + 6, 7.5, 3.6);                        // a leaning book
     this._add('a', cyl(3.4, 2.6, 0.5, cx + 6, 7.75, cz, C(0xf5e8c6))); this._add('a', torus(3.1, 0.14, cx + 6, 8.0, cz, C(0x4a7dff))); this.coffee = { x: cx, y: 7.5, z: cz };
     this.box(0xe5484d, cx - 6, 7.5, cz - 2.4, 6, 0.3, 4.4, { e: 0.16, ry: 0.3, collide: false }); this.box(0xf5e8c6, cx - 6, 7.8, cz - 2.4, 4.4, 0.06, 1.2, { e: 0.16, ry: 0.3, collide: false }); this._add('a', torus(1.3, 0.1, cx + 0.5, 7.56, cz + 3.6, C(0x8a5a36)));
     for (const [lx, lz] of [[-7, -3], [0, 3], [6, 0], [9.5, -4]]) this.spot(cx + lx, 7.5, cz + lz, 2);
@@ -219,7 +220,7 @@ export class House {
     this.box(0xffc93c, fx + 2, 10.4, fz - 13, 7, 3.4, 7, { soft: true, e: 0.6, ry: 0.4 });   // a cushion
     this.box(0xff6fa5, fx - 1.6, 10.4, fz + 19, 3, 6.4, 7, { soft: true, e: 0.6, ry: 0.2 }); for (const k of [-16, -8, 0, 8, 16]) for (const y of [15, 20]) this.blob(0x1f9c8e, fx - 4.1, y, fz + k, 0.6, [0.5, 1, 1]);
     this._add('a', cap(0.5, 44, fx - 6.5, 23.4, fz, C(0x5fd8c8), Math.PI / 2)); for (const s of [-1, 1]) this._add('a', cap(0.45, 15, fx + 0.5, 15.4, fz + s * 24.5, C(0x5fd8c8), 0, Math.PI / 2));
-    this.slope(0xff9fb8, fx + 24, fz + 18, 0, fx + 8.2, fz + 18, 10.4, 6);                 // a blanket trailing to the floor
+    this.slope(0xff9fb8, fx + 1, fz + 49, 0, fx + 1, fz + 26, 15.2, 6);                    // a blanket trailing off the arm to the floor
     for (const k of [-14, 2, 15]) this.spot(fx + 2, 10.4, fz + k, 2);
     for (const k of [-16, -3, 12]) this.spot(fx - 1, 0, fz + k, 1);
     // ---- the TV on its stand, flickering all night
@@ -249,9 +250,9 @@ export class House {
     this.post(0xe5484d, bx + 14, 36, bz - 1, 1.8, 2.6, { r2: 1.3, walk: true }); for (let k = 0; k < 5; k++) this.blob(0x5fd08a, bx + 14 + Math.cos(k * 1.3) * 1.6, 39.4 + (k % 2) * 0.8, bz - 1 + Math.sin(k * 1.3) * 1.6, 1.3); for (let k = 0; k < 4; k++) this.blob(0x43b869, bx + 16.4, 37.4 - k * 1.7, bz + 1.4 + k * 0.5, 0.75);   // a pot plant trailing down
     this.post(0xf5e8c6, bx - 14, 27, bz - 0.4, 1.3, 3.2, { walk: true, r2: 0.9 }); this.blob(0x4a7dff, bx - 14, 31.2, bz - 0.4, 1.5); this.box(0xffc93c, bx + 3, 9, bz + 0.6, 3.6, 3, 0.6, { e: 0.2, collide: false }); this.blob(0xff6fa5, bx + 3, 10.5, bz + 0.95, 0.9, [1, 1, 0.3]);            // a vase, and a photo frame
     // ---- odds and ends on the floor
-    this.box(0xe5484d, -8, 0, 59, 6, 2.2, 3.4, { e: 0.45, ry: 0.5, soft: true }); this.box(0xe5484d, -1, 0, 61, 6, 2.2, 3.4, { e: 0.45, ry: -0.3, soft: true });     // his spare slippers
-    this.box(0x6a6ff0, -14, 0, 44, 7, 1.2, 9, { e: 0.2, ry: 0.3 }); this.box(0xff8a3c, -14.5, 1.2, 44.4, 6.4, 1, 8.4, { e: 0.2, ry: 0.5 });                              // a pile of books
-    this.post(0x5fd08a, -78, 0, 30, 2.4, 5, { r2: 3, walk: true }); this._add('a', ball(3.6, -78, 8, 30, C(0x43b869), [1, 1.3, 1])); this._add('a', ball(2.4, -76, 11, 31, C(0x5fd06a)));  // a pot plant
+    this.box(0xe5484d, -86, 0, 62, 6, 2.2, 3.4, { e: 0.45, ry: 0.5, soft: true }); this.box(0xe5484d, -84, 0, 66, 6, 2.2, 3.4, { e: 0.45, ry: -0.3, soft: true });   // his spare slippers
+    this.box(0x6a6ff0, 32, 0, 64, 7, 1.2, 9, { e: 0.2, ry: 0.3 }); this.box(0xff8a3c, 31.5, 1.2, 64.4, 6.4, 1, 8.4, { e: 0.2, ry: 0.5 });                                  // a pile of books
+    this.post(0x5fd08a, -84, 0, -62, 2.4, 5, { r2: 3, walk: true }); this._add('a', ball(3.6, -84, 8, -62, C(0x43b869), [1, 1.3, 1])); this._add('a', ball(2.4, -82, 11, -61, C(0x5fd06a)));  // a pot plant
     for (const [x, z] of [[-84, 32], [-52, 58], [-20, 62], [8, 60], [16, -30], [-84, -60], [-60, -62], [-22, -62], [-6, 6], [-64, 8], [-30, -22], [-50, 30]]) this.spot(x, 0, z, 1);
     for (const [x, z] of [[-80, 40], [-30, 50], [4, 50], [-84, -40], [-10, -30], [-56, 46], [14, -52]]) this.tool(x, 0, z);
     this.tool(fx + 2, 10.4, fz - 5); this.tool(cx + 3, 7.5, cz - 4);
@@ -259,10 +260,10 @@ export class House {
   _kitchen() {
     const H = HOUSE, r = this.R, wood = 0xd9a45a;
     // ---- the island that divides the rooms
-    const ix = 30, iz = -22; this.box(0xf5e8c6, ix, 0, iz, 10, 18.6, 38, { e: 0.14 }); this.box(0x8a5a36, ix, 18.6, iz, 11.6, 1.4, 40, { e: 0.2 }); this.island = { x: ix, y: 20, z: iz };
-    this.slope(0xbd7f45, ix + 32, iz - 14, 0, ix + 5.6, iz - 14, 20, 3.4);                             // a broom leaning on it
-    this._add('a', cyl(0.5, 0.5, 30, ix + 3, 34, iz - 16, C(0x6f7a9a))); this._add('a', ball(3.2, ix + 3, 20.8, iz - 16, C(0xff8a3c), [1, 0.5, 1])); this.blob(0xe5484d, ix + 2, 22.6, iz - 15.4, 1.3); this.blob(0x5fd08a, ix + 4.2, 22.5, iz - 16.6, 1.2); this.blob(0xffd23c, ix + 3, 22.9, iz - 17.4, 1.1, [1.8, 0.8, 0.8]);  // fruit bowl
-    for (const [lx, lz] of [[-2, -12], [2, 0], [-1, 9], [3, -6]]) this.spot(ix + lx, 20, iz + lz, 2);
+    const ix = 30, iz = -26; this.box(0xf5e8c6, ix, 0, iz, 10, 18.6, 30, { e: 0.14 }); this.box(0x8a5a36, ix, 18.6, iz, 11.6, 1.4, 32, { e: 0.2 }); this.island = { x: ix, y: 20, z: iz };
+    this.slope(0xbd7f45, ix + 32, iz - 10, 0, ix + 5.6, iz - 10, 20, 3.4);                             // a broom leaning on it
+    this._add('a', cyl(0.5, 0.5, 30, ix + 3, 34, iz - 5, C(0x6f7a9a))); this._add('a', ball(3.2, ix + 3, 20.8, iz - 5, C(0xff8a3c), [1, 0.5, 1])); this.blob(0xe5484d, ix + 2, 22.6, iz - 4.4, 1.3); this.blob(0x5fd08a, ix + 4.2, 22.5, iz - 5.6, 1.2); this.blob(0xffd23c, ix + 3, 22.9, iz - 6.4, 1.1, [1.8, 0.8, 0.8]);  // fruit bowl
+    for (const [lx, lz] of [[-2, -12], [2, 2], [-1, 10], [-3, -3]]) this.spot(ix + lx, 20, iz + lz, 2);
     // ---- kitchen table and four chairs
     const tx = 60, tz = 30; this.table(wood, tx, tz, 30, 20, 17, { leg: 0xbd7f45 }); this.ktable = { x: tx, y: 17, z: tz };
     this.chair(0xe5484d, tx - 8, tz - 14, 0); this.chair(0xe5484d, tx + 8, tz - 14, 0); this.chair(0xe5484d, tx - 8, tz + 14, Math.PI); this.chair(0xe5484d, tx + 8, tz + 14, Math.PI);
@@ -286,15 +287,15 @@ export class House {
     // ---- the fridge and the bin
     this.box(0xdfe8f0, H.x1 - 9, 0, 54, 16, 46, 18, { e: 0.16 }); this.box(0xb8c4d0, H.x1 - 17.4, 14, 60, 0.8, 16, 1.2, { collide: false, e: 0.4 }); this.box(0xc8d4e0, H.x1 - 17.1, 29, 54, 0.3, 0.5, 17, { collide: false, e: 0.3 });
     for (const [y, z, col] of [[24, 49, 0xe5484d], [20, 52, 0xffc93c], [26, 57, 0x5fd08a], [18, 47, 0x4a7dff]]) this.blob(col, H.x1 - 17.2, y, z, 0.9, [0.3, 1, 1]);                 // fridge magnets
-    this.post(0x6f7a9a, 44, 0, H.z0 + 9, 5.4, 12, { r2: 4.4, walk: true }); this._add('a', ball(5.6, 44, 12, H.z0 + 9, C(0x474c66), [1, 0.3, 1])); for (const g of eyes(44, 8, H.z0 + 14.2, 0.9, 1.3)) this._add('a', g);   // the bin is watching
+    this.post(0x6f7a9a, 66, 0, H.z0 + 9, 5.4, 12, { r2: 4.4, walk: true }); this._add('a', ball(5.6, 66, 12, H.z0 + 9, C(0x474c66), [1, 0.3, 1])); for (const g of eyes(66, 8, H.z0 + 14.2, 0.9, 1.3)) this._add('a', g);   // the bin is watching
     for (const g of eyes(0, 0, 0, 1.6, 2.4)) this._add('a', g.rotateY(-Math.PI / 2).translate(H.x1 - 17.2, 34, 54));   // so is the fridge
     for (const g of eyes(0, 0, 0, 1.3, 2.0)) this._add('a', g.rotateY(Math.PI).translate(-40, 33, H.z1 - 7.9));        // and the telly
     // ---- the cat's bowl and a stool
-    this.post(0x35c4b0, 36, 0, 58, 3.6, 1.6, { r2: 4.2, walk: true }); this.table(0xbd7f45, 52, H.z0 + 14, 9, 9, 11);
-    this.spot(52, 11, H.z0 + 14, 2); this.spot(36, 1.6, 58, 1);
-    for (const [x, z] of [[40, 60], [70, 62], [84, 34], [50, -56], [70, -40], [40, 0], [66, 4], [28, 20], [74, -62]]) this.spot(x, 0, z, 1);
+    this.post(0x35c4b0, 42, 0, 63, 3.6, 1.6, { r2: 4.2, walk: true }); this.table(0xbd7f45, 68, -47, 9, 9, 11);
+    this.spot(68, 11, -47, 2); this.spot(42, 1.6, 63, 1);
+    for (const [x, z] of [[40, 60], [70, 62], [84, 34], [50, -56], [58, -44], [40, 0], [66, 4], [28, 20], [74, -62]]) this.spot(x, 0, z, 1);
     for (const [x, z] of [[46, 50], [72, 50], [58, -20], [38, -60], [26, 34]]) this.tool(x, 0, z);
-    this.tool(tx + 9, 17, tz + 4); this.tool(cx - 2, 20.4, cz + 20); this.tool(ix, 20, iz + 14);
+    this.tool(tx + 9, 17, tz + 4); this.tool(cx - 2, 20.4, cz + 20); this.tool(ix, 20, iz + 12);
   }
   _den() {
     const D = DEN, H = HOUSE, T = 2, dirt = 0x8a5a36;
@@ -311,15 +312,61 @@ export class House {
   }
   // Where a giant can walk without putting a foot through the furniture, and the Roomba's round
   _paths() {
-    this.nodes = { S: [-40, -3], L: [-60, -8], R: [-14, -6], SL: [-62, 30], SR: [-16, 32], C: [-40, 40], H: [-74, 44], K1: [10, 16], K2: [40, 4], K3: [56, -54], K4: [30, 54], N: [8, -50] };
+    this.nodes = { S: [-40, 4], L: [-62, 2], R: [-14, -6], SL: [-62, 34], SR: [-16, 36], C: [-40, 46], H: [-66, 48], K1: [10, 16], K2: [56, -4], K3: [44, -54], K4: [28, 52], N: [8, -50] };
     this.links = [['S', 'L'], ['S', 'R'], ['L', 'SL'], ['R', 'SR'], ['SL', 'C'], ['SR', 'C'], ['SL', 'H'], ['R', 'K1'], ['SR', 'K1'], ['K1', 'K2'], ['K1', 'K4'], ['R', 'N'], ['N', 'K3']];
-    this.roomba = [[-60, 26], [-22, 27], [10, 20], [24, 10], [24, 40], [34, 54], [2, 48], [-30, 48], [-64, 40]];
+    this.roomba = [[-60, 36], [-22, 38], [10, 20], [24, 10], [24, 40], [34, 54], [2, 48], [-30, 48], [-64, 44]];
   }
   // The route between two of Grandpa's standing places (a list of node names)
   route(from, to) {
     const prev = { [from]: null }, q = [from];
     while (q.length) { const n = q.shift(); if (n === to) break; for (const [a, b] of this.links) { const m = a === n ? b : b === n ? a : null; if (m && !(m in prev)) { prev[m] = n; q.push(m); } } }
     const out = []; for (let n = to; n; n = prev[n]) out.unshift(n); return out;
+  }
+  // ---- where a giant can walk. The floor as a grid of 2-unit squares, with everything he would bump into
+  // (grown by the width of him) blocked out. Low things only catch his feet; anything under 3 high he just treads on.
+  _walkGrid() {
+    const C = 2, H = HOUSE, nx = Math.ceil((H.x1 - H.x0) / C), nz = Math.ceil((H.z1 - H.z0) / C), free = new Uint8Array(nx * nz).fill(1), all = new Set();
+    for (const list of this.cells.values()) for (const c of list) all.add(c);
+    for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) { const x = H.x0 + (i + 0.5) * C, z = H.z0 + (j + 0.5) * C; if (x < H.x0 + 9.5 || x > H.x1 - 9.5 || z < H.z0 + 9.5 || z > H.z1 - 9.5) free[i + j * nx] = 0; }
+    for (const c of all) {
+      if (c === this.chairBlock || c.top < 3 || (!c.ramp && c.bottom > 34)) continue;
+      const pad = c.top < 5.6 ? 6.5 : 8, R = c.r + pad, i0 = Math.max(0, Math.floor((c.x - R - H.x0) / C)), i1 = Math.min(nx - 1, Math.floor((c.x + R - H.x0) / C)), j0 = Math.max(0, Math.floor((c.z - R - H.z0) / C)), j1 = Math.min(nz - 1, Math.floor((c.z + R - H.z0) / C));
+      for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) if (free[i + j * nx] && this._inside(c, H.x0 + (i + 0.5) * C, H.z0 + (j + 0.5) * C, pad)) free[i + j * nx] = 0;
+    }
+    this.walk = { C, nx, nz, free };
+    // anywhere he could stand but never get to (from the front of his chair) does not count
+    const [si, sj] = this._cell(...this.nearestFree(CHAIR.x, CHAIR.z + 22)), seen = new Uint8Array(nx * nz), q = [si + sj * nx]; seen[q[0]] = 1;
+    while (q.length) { const n = q.pop(), i = n % nx, j = Math.floor(n / nx); for (const [a, b] of [[i + 1, j], [i - 1, j], [i, j + 1], [i, j - 1]]) { const m = a + b * nx; if (a >= 0 && b >= 0 && a < nx && b < nz && free[m] && !seen[m]) { seen[m] = 1; q.push(m); } } }
+    for (let n = 0; n < free.length; n++) free[n] &= seen[n];
+    for (const k in this.nodes) this.nodes[k] = this.nearestFree(...this.nodes[k]);      // every standing place is somewhere he fits
+  }
+  _cell(x, z) { const W = this.walk; return [clamp(Math.floor((x - HOUSE.x0) / W.C), 0, W.nx - 1), clamp(Math.floor((z - HOUSE.z0) / W.C), 0, W.nz - 1)]; }
+  canStand(x, z) { const W = this.walk, [i, j] = this._cell(x, z); return !!W.free[i + j * W.nx]; }
+  nearestFree(x, z) {
+    const W = this.walk, [ci, cj] = this._cell(x, z); let best = null, bd = 1e9;
+    for (let r = 0; r < 40 && !best; r++) for (let i = ci - r; i <= ci + r; i++) for (let j = cj - r; j <= cj + r; j++) {
+      if (Math.max(Math.abs(i - ci), Math.abs(j - cj)) !== r || i < 0 || j < 0 || i >= W.nx || j >= W.nz || !W.free[i + j * W.nx]) continue;
+      const px = HOUSE.x0 + (i + 0.5) * W.C, pz = HOUSE.z0 + (j + 0.5) * W.C, d = Math.hypot(px - x, pz - z); if (d < bd) { bd = d; best = [px, pz]; } }
+    return best || [x, z];
+  }
+  _clear(x0, z0, x1, z1) { const n = Math.ceil(Math.hypot(x1 - x0, z1 - z0)); for (let k = 0; k <= n; k++) if (!this.canStand(x0 + (x1 - x0) * k / (n || 1), z0 + (z1 - z0) * k / (n || 1))) return false; return true; }
+  // A walk from one spot to another that goes round the furniture: a list of [x, z] to head for in turn. (Empty if there is no way.)
+  walkPath(x0, z0, x1, z1) {
+    const W = this.walk, { nx, nz, free, C } = W, [ex, ez] = this.nearestFree(x1, z1), [si, sj] = this._cell(...this.nearestFree(x0, z0)), [ei, ej] = this._cell(ex, ez);
+    const start = si + sj * nx, goal = ei + ej * nx, cost = new Float32Array(nx * nz).fill(1e9), from = new Int32Array(nx * nz).fill(-1), open = [start]; cost[start] = 0;
+    while (open.length) {
+      let bi = 0, bf = 1e9; for (let k = 0; k < open.length; k++) { const n = open[k], f = cost[n] + Math.hypot(n % nx - ei, Math.floor(n / nx) - ej); if (f < bf) { bf = f; bi = k; } }
+      const n = open.splice(bi, 1)[0]; if (n === goal) break; const i = n % nx, j = Math.floor(n / nx);
+      for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+        if (!di && !dj) continue; const a = i + di, b = j + dj; if (a < 0 || b < 0 || a >= nx || b >= nz || !free[a + b * nx]) continue;
+        if (di && dj && (!free[a + j * nx] || !free[i + b * nx])) continue;                      // no squeezing between two corners
+        const m = a + b * nx, g = cost[n] + (di && dj ? 1.414 : 1); if (g < cost[m]) { if (cost[m] === 1e9) open.push(m); cost[m] = g; from[m] = n; } }
+    }
+    if (goal !== start && from[goal] < 0) return [];
+    const pts = []; for (let n = goal; n !== start && n >= 0; n = from[n]) pts.unshift([HOUSE.x0 + (n % nx + 0.5) * C, HOUSE.z0 + (Math.floor(n / nx) + 0.5) * C]);
+    pts.push([ex, ez]); const out = []; let px = x0, pz = z0, k = 0;                              // pull the string tight: skip every corner he can cut
+    while (k < pts.length) { let far = k; for (let m = pts.length - 1; m > k; m--) if (this._clear(px, pz, pts[m][0], pts[m][1])) { far = m; break; } out.push(pts[far]); [px, pz] = pts[far]; k = far + 1; }
+    return out;
   }
   nearestNode(x, z) { let best = 'S', bd = 1e9; for (const k in this.nodes) { const d = Math.hypot(this.nodes[k][0] - x, this.nodes[k][1] - z); if (d < bd) { bd = d; best = k; } } return best; }
 }

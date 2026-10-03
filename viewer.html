@@ -34,18 +34,18 @@ const items = []; Object.keys(ITEMS).forEach((k, i) => { const m = new THREE.Gro
 const TROLL = Object.keys(ITEMS).filter(k => ITEMS[k].troll); TROLL.forEach((k, i) => { const m = new THREE.Group(), mm = new THREE.Mesh(itemGeo(k), toyMat); mm.castShadow = true; m.add(mm); addOutline(m, 0.0024); m.position.set(40 + (i % 5) * 4.6, 0.05, 54 + Math.floor(i / 5) * 5); scene.add(m); items.push(m); });
 const views = {
   trolls: [[49.2, 8.5, 69], [49.2, 0.8, 55.5]],
-  beans: [[-40, 3.2, 46.5], [-40, 0.9, 36]], beans2: [[-44.4, 1.6, 42.6], [-44.4, 1.0, 38]], beans3: [[-35.6, 1.6, 42.6], [-35.6, 1.0, 38]], beans4: [[-44.4, 1.6, 37.6], [-44.4, 1.0, 33]], beans5: [[-35.6, 1.6, 37.6], [-35.6, 1.0, 33]], grandpa: [[-40, 26, 22], [-40, 20, -18]], 
-  items: [[13, 13, 2], [13, 0, -21]], face: [[-33, 37, 2], [-40, 36, -16]], lap: [[-22, 22, 14], [-40, 24, -16]], room: [[60, 52, 62], [-30, 6, -6]], kitchen: [[-10, 40, 60], [56, 8, -6]], mouse: [[-74, 2.0, 46], [-40, 16, -14]], awake: [[-40, 14, 44], [-40, 24, -4]]
+  beans: [[-40, 3.2, 46.5], [-40, 0.9, 36]], beans2: [[-44.4, 1.6, 42.6], [-44.4, 1.0, 38]], beans3: [[-35.6, 1.6, 42.6], [-35.6, 1.0, 38]], beans4: [[-44.4, 1.6, 37.6], [-44.4, 1.0, 33]], beans5: [[-35.6, 1.6, 37.6], [-35.6, 1.0, 33]], grandpa: [[-40, 26, 30], [-40, 21, -18]], gside: [[-2, 22, 0], [-40, 20, -16]], gback: [[-22, 9, 26], [-40, 20, -3]], under: [[-33, 2.5, 22], [-40, 22, -3]], 
+  items: [[13, 13, 2], [13, 0, -21]], face: [[-33, 40, 4], [-40, 38.5, -16]], lap: [[-20, 24, 18], [-40, 22, -16]], low: [[-30, 3, 16], [-40, 18, -14]], walk: [[-14, 12, 34], [-40, 18, -2]], swat: [[-12, 10, 26], [-40, 12, 6]], room: [[60, 52, 62], [-30, 6, -6]], kitchen: [[-10, 40, 60], [56, 8, -6]], mouse: [[-74, 2.0, 46], [-40, 16, -14]], awake: [[-40, 14, 46], [-40, 22, -4]]
 };
 let cur = 'beans', mode = 'sleep', time = 0, last = performance.now();
-window.__v = { view(n) { cur = n; }, wake() { mode = 'awake'; grandpa.state = 'hunt'; grandpa.x = -40; grandpa.z = -3; grandpa.target = { x: -40, z: 30 }; grandpa.house.chairBlock.off = true; }, swat() { grandpa.state = 'swat'; grandpa.t = 0.6; grandpa.swat = { x: -40, z: 9 }; grandpa.onEvent = () => {}; }, stir() { grandpa.state = 'stir'; }, sleep() { grandpa.reset(); mode = 'sleep'; }, grandpa, house, beans, renderer };
+window.__v = { view(n) { cur = n; }, wake() { mode = 'awake'; grandpa.state = 'hunt'; grandpa.x = -40; grandpa.z = -3; grandpa.target = { x: -40, z: 30 }; grandpa.house.chairBlock.off = true; }, swat() { grandpa.state = 'swat'; grandpa.t = 0.6; grandpa.swat = { x: -40, z: 9 }; grandpa.onEvent = () => {}; }, stir() { grandpa.state = 'stir'; }, emote(k) { grandpa.emote(k); }, slam() { grandpa.state = 'swat'; grandpa.swat = { x: -40, z: 11 }; grandpa.onEvent = () => {}; grandpa.t = 1.12; window.__hold = 1; }, ret() { grandpa.state = 'return'; grandpa.moving = true; grandpa.target = null; }, noTarget() { grandpa.target = null; grandpa.moving = false; }, slip() { grandpa.state = 'slip'; grandpa.t = 0; grandpa.onEvent = () => {}; }, walk(on) { grandpa.moving = !!on; }, st(s) { grandpa.state = s; grandpa.t = 0; }, sleep() { grandpa.reset(); mode = 'sleep'; }, grandpa, house, beans, renderer };
 const loop = now => {
   requestAnimationFrame(loop); const dt = Math.min(0.05, (now - last) / 1000); last = now; time += dt;
   const W = canvas.clientWidth, H = canvas.clientHeight; if (canvas.width !== W || canvas.height !== H) { renderer.setSize(W, H, false); camera.aspect = W / H; camera.updateProjectionMatrix(); } toonUniforms.uAspect.value = camera.aspect;
   const [p, l] = views[cur]; camera.position.set(...p); camera.lookAt(...l);
   for (const [b, st] of beans) b.update(dt, { fwd: F, look: new THREE.Vector3(camera.position.x - b.root.position.x, 0, camera.position.z - b.root.position.z).normalize(), ...st });
   for (const m of items) m.rotation.y += dt * 0.8;
-  if (grandpa.state === 'swat') grandpa.t = 0.6 + (time % 1.2) * 0.9;
+  if (grandpa.state === 'swat' && !window.__hold) grandpa.t = 0.6 + (time % 1.2) * 0.9;
   grandpa.update(dt, [{ x: -40, y: 1, z: 30 }]);
   renderer.render(scene, camera);
 };

@@ -1,6 +1,6 @@
 // Don't Wake Grandpa: every number in one place. You are a bean about the size of a mouse.
 // One unit is roughly a bean's arm; a bean stands 1.7 tall and Grandpa stands 40.
-export const VERSION = '0.1.0';
+export const VERSION = "0.2.0";
 
 export const HOUSE = { x0: -90, x1: 90, z0: -70, z1: 70, ceil: 64, split: 22 };   // living room west of split, kitchen east
 export const DEN = { x: -99, z: 50, hx: 9, hz: 8 };                                // the mouse hole: safe, and where loot is banked

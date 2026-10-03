@@ -2,6 +2,7 @@
 // honk-shoo snore, his mumbling and bellowing, squeaks, boings, bonks, toots, the air horn, the lullaby,
 // the cuckoo and the sneaky plucked music that speeds up into a chase. Footsteps and knocks are samples.
 import { clamp } from './util.js';
+import { LINES } from './config.js';
 
 const rnd = (a, b) => a + Math.random() * (b - a);
 const SAMPLES = [...['grass', 'stone', 'wood'].flatMap(s => [0, 1, 2, 3, 4].map(n => `step_${s}00${n}`)), 'hit000', 'hit001', 'hit002', 'creak1', 'creak2', 'latch', 'coins1', 'coins2', 'swing1', 'swing2', 'cloth', 'leather', 'chop',
@@ -12,12 +13,18 @@ export class Sound {
   constructor(ctx) {
     this.ctx = ctx; this.ear = { x: 0, y: 0, z: 0, yaw: 0 }; this.buf = {};
     this.master = ctx.createGain(); this.master.gain.value = 0.8;
-    const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 5; this.master.connect(comp); comp.connect(ctx.destination);
+    // a gentle limiter, then turned well down: nothing in the house should make you jump out of your chair
+    const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -20; comp.ratio.value = 3; comp.knee.value = 18; comp.attack.value = 0.004; comp.release.value = 0.3;
+    this.out = ctx.createGain(); this.out.gain.value = 0.5; this.master.connect(comp); comp.connect(this.out); this.out.connect(ctx.destination); this.voice = {};
     this.noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate); const d = this.noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-    this.musicG = ctx.createGain(); this.musicG.gain.value = 0.5; this.musicG.connect(this.master);
+    this.musicG = ctx.createGain(); this.musicG.gain.value = 0.3; this.musicG.connect(this.master);
     this.beat = 0; this.step16 = 0; this.snoreT = 1; this.heart = 0; this.tvT = 0; window.speechSynthesis?.getVoices();
   }
-  async load(onProgress) { let n = 0; await Promise.all(SAMPLES.map(f => fetch(`assets/sfx/${f}.ogg`).then(r => r.arrayBuffer()).then(b => this.ctx.decodeAudioData(b)).then(buf => { this.buf[f] = buf; }).catch(() => {}).finally(() => onProgress?.(++n / SAMPLES.length)))); }
+  async load(onProgress) {
+    const lines = Object.entries(LINES).flatMap(([cat, list]) => list.map((_, i) => cat + '_' + i)), total = SAMPLES.length + lines.length; let n = 0;
+    const get = (url, into, key) => fetch(url).then(r => r.arrayBuffer()).then(b => this.ctx.decodeAudioData(b)).then(buf => { into[key] = buf; }).catch(() => {}).finally(() => onProgress?.(++n / total));
+    await Promise.all([...SAMPLES.map(f => get(`assets/sfx/${f}.ogg`, this.buf, f)), ...lines.map(k => get(`assets/voice/${k}.wav`, this.voice, k))]);
+  }
   setVolume(v) { this.master.gain.value = v; }
   listen(x, y, z, yaw) { Object.assign(this.ear, { x, y, z, yaw }); }
   _place(o) {
@@ -27,7 +34,7 @@ export class Sound {
     const k = 1 - d / range, rx = Math.cos(e.yaw), rz = -Math.sin(e.yaw);
     return [k * k, d < 0.5 ? 0 : clamp((dx * rx + dz * rz) / d, -1, 1) * 0.8];
   }
-  _out(o) { const [k, pan] = this._place(o); if (k <= 0.003) return null; const c = this.ctx, g = c.createGain(), p = c.createStereoPanner(); g.gain.value = (o.vol ?? 1) * k; p.pan.value = pan; g.connect(p); p.connect(o.music ? this.musicG : this.master); return g; }
+  _out(o) { const [k, pan] = this._place(o); if (k <= 0.003) return null; const c = this.ctx, g = c.createGain(), p = c.createStereoPanner(); g.gain.value = Math.min(o.vol ?? 1, 1.5) * k; p.pan.value = pan; g.connect(p); p.connect(o.music ? this.musicG : this.master); return g; }
   play(name, o = {}) { const buf = this.buf[name]; if (!buf) return; const out = this._out(o); if (!out) return; const s = this.ctx.createBufferSource(); s.buffer = buf; s.playbackRate.value = (o.rate || 1) * rnd(0.95, 1.05); s.connect(out); s.start(this.ctx.currentTime + (o.delay || 0)); }
   // A pitched voice. f: [[time 0..1, Hz], ...]. o: { type, dur, vol, vib, vibRate, lp, attack, x, y, z, range, delay }
   tone(f, o = {}) {
@@ -106,15 +113,13 @@ export class Sound {
     if (inhale) { this.noise({ ...p, type: 'bandpass', freq: 170, freq2: 330, q: 3, dur: 1.25, vol: 2.2, am: 21, attack: 0.5, range: 150 }); this.tone([[0, 70], [1, 95]], { ...p, type: 'sawtooth', dur: 1.2, vol: 0.25, lp: 300, vib: 8, vibRate: 21, attack: 0.5, range: 150 }); }
     else { this.tone([[0, 980], [0.3, 760], [1, 420]], { ...p, type: 'sine', dur: 1.3, vol: 0.09, attack: 0.3, vib: 18, vibRate: 9, range: 150 }); this.noise({ ...p, type: 'bandpass', freq: 1900, freq2: 700, q: 1.5, dur: 1.3, vol: 0.5, attack: 0.3, am: 30, range: 150 }); }
   }
-  // Grandpa actually speaks. Uses the computer's own speech voices, pitched down and slowed into a grumpy old man.
-  // loud: shouting (awake). dist: how far away he is, so he is quieter from across the house.
-  say(text, loud, dist = 0) {
-    const S = window.speechSynthesis; if (!S || !text) return false;
-    if (!this.voiceObj) { const vs = S.getVoices(); this.voiceObj = vs.find(v => /George|Ryan|Guy|Daniel/i.test(v.name) && /^en/i.test(v.lang)) || vs.find(v => /David|Mark|James|Male/i.test(v.name) && /^en/i.test(v.lang)) || vs.find(v => /^en-GB/i.test(v.lang)) || vs.find(v => /^en/i.test(v.lang)) || null; }
-    const u = new SpeechSynthesisUtterance(text.replace(/\.\.\./g, ', ')); if (this.voiceObj) u.voice = this.voiceObj;
-    u.pitch = loud ? 0.55 : 0.2; u.rate = loud ? 1.15 : 0.72; u.volume = clamp(this.master.gain.value * (loud ? 1 : 0.75) * clamp(1.25 - dist / (loud ? 260 : 120), 0.15, 1), 0, 1);
-    if (u.volume < 0.02) return false; if (loud) S.cancel(); else if (S.speaking) return false;
-    S.speak(u); return true;
+  // Grandpa actually speaks: a recorded line (key like 'wake_3'), heard from where his mouth is.
+  // loud: he is shouting, and it carries across the house. A new shout cuts off whatever he was saying; a mutter waits its turn.
+  say(key, loud, p = {}) {
+    const buf = this.voice[key]; if (!buf) return false;
+    if (this.saying && this.ctx.currentTime < this.sayEnd) { if (!loud) return true; try { this.saying.stop(); } catch (_) {} }
+    const out = this._out({ ...p, vol: loud ? 1.5 : 1.1, range: loud ? 480 : 230 }); if (!out) return true;
+    const s = this.ctx.createBufferSource(); s.buffer = buf; s.connect(out); s.start(); this.saying = s; this.sayEnd = this.ctx.currentTime + buf.duration; return true;
   }
   // Mumbling: a few low wobbly syllables. loud = he is properly shouting.
   speak(p, loud, syllables = 4) {

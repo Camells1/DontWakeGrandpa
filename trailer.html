@@ -16,6 +16,7 @@ import { toyMat } from './src/materials.js';
 import { toonUniforms, addOutline } from './src/toon.js';
 import { Sound } from './src/audio.js';
 import { Fx } from './src/fx.js';
+import { angDiff } from './src/util.js';
 const W = 1600, H = 900, gl = document.querySelector('#gl'), out = document.querySelector('#out'); out.width = W; out.height = H; const c2 = out.getContext('2d');
 const renderer = new THREE.WebGLRenderer({ canvas: gl, antialias: true, preserveDrawingBuffer: true }); renderer.setSize(W, H, false); renderer.toneMapping = THREE.NeutralToneMapping; renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene(); scene.background = new THREE.Color(0x100c1e); const camera = new THREE.PerspectiveCamera(60, W / H, 0.06, 600); toonUniforms.uAspect.value = W / H;
@@ -23,7 +24,7 @@ const hemi = new THREE.HemisphereLight(0x8f9cf0, 0x3a2f55, 0.95), moon = new THR
 Object.assign(moon.shadow.camera, { left: -125, right: 125, top: 125, bottom: -125, near: 20, far: 420 }); moon.shadow.bias = -0.0012; moon.shadow.normalBias = 0.14;
 const tvLight = new THREE.PointLight(0x9fc8ff, 900, 110, 1.5), lampLight = new THREE.PointLight(0xffd9a0, 0, 160, 1.3), bigLight = new THREE.PointLight(0xfff0d0, 0, 260, 1.1), key = new THREE.PointLight(0xfff0e0, 0, 40, 1.2);
 scene.add(hemi, moon, moon.target, tvLight, lampLight, bigLight, key);
-const actx = new AudioContext(), sound = new Sound(actx), dest = actx.createMediaStreamDestination(); sound.master.connect(dest); await sound.load();
+const actx = new AudioContext(), sound = new Sound(actx), dest = actx.createMediaStreamDestination(); sound.out.connect(dest); sound.setVolume(0.7); await sound.load();   // filmed after the limiter, at the same gentle level as the game
 const house = new House(scene), grandpa = new Grandpa(scene, house), fx = new Fx(scene);
 let shake = 0, lit = 0, time = 0, music = 'sleep';
 grandpa.onStep = (x, z) => { sound.stomp({ x, y: 0, z }); shake = Math.max(shake, 0.5); fx.dust(x, 0, z, 6, 2); };
@@ -32,12 +33,12 @@ const D = defaultLook(0), LOOKS = [{ body: 1, hat: 2, hatC: 11, face: 1, top: 5,
 let beans = LOOKS.map(l => { const b = new Robber(l); scene.add(b.root); b.st = {}; return b; });
 const F = new THREE.Vector3(), L = new THREE.Vector3();
 const prop = (kind, s = 1) => { const g = new THREE.Group(), m = new THREE.Mesh(itemGeo(kind), toyMat); m.castShadow = true; g.add(m); addOutline(g, 0.0024); g.scale.setScalar(s); g.visible = false; scene.add(g); return g; };
-const P = { watch: prop('watch'), coin: prop('coin'), pan: prop('pan', 0.7), peel: prop('peel', 1.6), teeth: prop('teeth'), shrink: prop('shrink', 0.55), helium: prop('helium', 0.9), glue: prop('glue', 0.9), pie: prop('pie', 0.7) };
+const P = { watch: prop('watch'), coin: prop('coin'), pan: prop('pan', 0.75), peel: prop('peel', 1.6), teeth: prop('teeth'), shrink: prop('shrink', 0.55), helium: prop('helium', 0.9), glue: prop('glue', 0.5), pie: prop('pie', 0.7) };
 // put a bean somewhere, facing a way, doing something
 const put = (b, x, y, z, yaw, st = {}) => { b.root.visible = true; b.root.position.set(x, y, z); b.root.rotation.y = yaw; b.st = st; };
-const hide = () => { for (const b of beans) b.root.visible = false; for (const k in P) P[k].visible = false; };
+const hide = () => { for (const b of beans) b.root.visible = false; for (const k in P) P[k].visible = false; key.intensity = 0; };
 const cam = (px, py, pz, lx, ly, lz, fov = 60) => { camera.position.set(px, py, pz); camera.lookAt(lx, ly, lz); if (camera.fov !== fov) { camera.fov = fov; camera.updateProjectionMatrix(); } };
-const mix = (a, b, t) => a + (b - a) * Math.min(1, Math.max(0, t)), ease = t => t * t * (3 - 2 * t);
+const mix = (a, b, t) => a + (b - a) * Math.min(1, Math.max(0, t)), ease = t => { t = Math.min(1, Math.max(0, t)); return t * t * (3 - 2 * t); };
 const sleepG = () => { grandpa.reset(); grandpa.onEvent = null; };
 // ---- words on screen
 const text = (str, y, size, col = '#fff', k = 1, rot = 0) => { c2.save(); c2.translate(W / 2, y); c2.rotate(rot); c2.scale(k, k); c2.font = `800 ${size}px "Arial Rounded MT Bold", Bahnschrift, "Segoe UI", sans-serif`; c2.textAlign = 'center'; c2.textBaseline = 'middle'; c2.lineJoin = 'round'; c2.lineWidth = size * 0.22; c2.strokeStyle = '#24183a'; c2.strokeText(str, 0, 0); c2.fillStyle = col; c2.fillText(str, 0, 0); c2.restore(); };
@@ -45,56 +46,89 @@ const pop = (t, at) => { const u = (t - at) / 0.25; return u < 0 ? 0 : u < 1 ? 0
 const caption = (t, at, until, str, col = '#ffc93c') => { if (t >= at && t < until) text(str, H - 150, 46, col, pop(t, at), -0.01); };
 const bubble = (t, at, until, str) => { if (t >= at && t < until) text(str, 170, 68, '#ff5d73', pop(t, at) * (1 + Math.sin(t * 30) * 0.02), -0.03); };
 
+// ---- helpers for staging
+const say = (key, loud = true) => sound.say(key, loud, grandpa.mouthPos);
+const bot = g => { const m = g.children[0]; m.geometry.boundingBox || m.geometry.computeBoundingBox(); return -m.geometry.boundingBox.min.y * g.scale.y; };
+const _h = new THREE.Vector3(), _s = new THREE.Vector3(), _d = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
+// a thing balanced over a bean's head (or over several), and a tool standing up out of a bean's fist, exactly as in the game
+const overhead = (g, bs, x, z) => { g.visible = true; g.position.set(x, Math.max(...bs.map(b => b.root.position.y + b.topY * b.root.scale.y)) + bot(g) - 0.1, z); g.rotation.set(0, 0, 0); };
+const inFist = (g, b, upright = true) => { b.root.updateWorldMatrix(true, true); b.hand.getWorldPosition(_h); b.arms[1].g.getWorldPosition(_s); const a = _s.sub(_h).negate().normalize(), ry = b.root.rotation.y, rx = -Math.cos(ry), rz = Math.sin(ry);
+  g.visible = true; g.position.copy(_h); if (upright) { _d.set(-rz * a.y, rz * a.x - rx * a.z, rx * a.y).normalize(); g.quaternion.setFromUnitVectors(UP, _d); g.position.addScaledVector(_d, 0.1); } };
+// Grandpa walks the route he has planned, round the furniture, just as he does in the game
+const walkG = (dt, sp = 11.5) => { grandpa.moving = false; if (!grandpa.way.length) return; const [nx, nz] = grandpa.way[0], dx = nx - grandpa.x, dz = nz - grandpa.z, d = Math.hypot(dx, dz); if (d < 0.8) { grandpa.way.shift(); return; }
+  grandpa.yaw += angDiff(Math.atan2(dx, dz), grandpa.yaw) * Math.min(1, dt * 5); grandpa.x += dx / d * Math.min(d, sp * dt); grandpa.z += dz / d * Math.min(d, sp * dt); grandpa.moving = true; };
+const awake = (x, z, yaw = 0) => { grandpa.state = 'hunt'; grandpa.t = 0; grandpa.x = grandpa.vx = x; grandpa.z = grandpa.vz = z; grandpa.yaw = grandpa.vyaw = yaw; grandpa.sit = 0; grandpa.moving = false; grandpa.target = null; grandpa.way = []; grandpa.emo = null; house.chairBlock.off = true; };
+const heroes = () => { for (const b of beans) scene.remove(b.root); beans = LOOKS.map(l => { const b = new Robber(l); scene.add(b.root); b.st = {}; b.root.visible = false; return b; }); };
+const once = (shot, key, t, at, fn) => { if (t >= at && !shot[key]) { shot[key] = true; fn(); } };
+const WARDROBE = [{ body: 0, top: 8, topA: 5, topB: 8, pants: 2, pantsC: 11 }, { body: 5, hat: 9, top: 1, topA: 8, face: 2, back: 1, backC: 0, pants: 1, pantsC: 4 }, { body: 6, shape: 2, hat: 11, face: 6, top: 9, topA: 10 }, { body: 7, shape: 1, hat: 5, hatC: 11, face: 5, top: 5, topA: 11, topB: 4 },
+  { body: 8, shape: 3, hat: 12, hatC: 2, face: 7, top: 6, topA: 2, topB: 8, back: 4 }, { body: 9, shape: 4, eyes: 3, hat: 7, top: 7, back: 7, backC: 4 }, { body: 10, hat: 10, hatC: 6, face: 4, mouth: 1, top: 3, topA: 15, topB: 8, pants: 1, pantsC: 4 }, { body: 13, face: 8, top: 2, topA: 8, topB: 11, hat: 1, hatC: 11, back: 6, eyes: 4 },
+  { body: 2, hat: 3, hatC: 5, top: 2, topA: 8, topB: 4, back: 3, backC: 4, mouth: 2 }, { body: 3, hat: 6, back: 2, backC: 4, eyes: 1, top: 10, topA: 6, topB: 3 }, { body: 4, top: 4, topA: 5, hat: 8, hatC: 10, mouth: 3 }, { body: 1, hat: 2, hatC: 11, face: 1, top: 5, topA: 11, topB: 4 }].map(l => unpackLook({ ...D, ...l }));
+
 const SHOTS = [
-  { dur: 4, setup() { hide(); sleepG(); lit = 0; music = 'sleep'; }, update(t) { cam(-40, 3, 40, -40, 24, -18, 50); }, over(t) { c2.fillStyle = `rgba(16,12,30,${1 - ease((t - 2.6) / 1.2)})`; c2.fillRect(0, 0, W, H); if (t < 3) { text('CAMEL STUDIOS', H / 2 - 30, 64, '#ffc93c', pop(t, 0.4)); text('presents', H / 2 + 44, 34, '#fff', pop(t, 0.9)); } } },
-  { dur: 6, setup() { hide(); }, update(t) { const u = ease(t / 6); cam(mix(-22, -34, u), mix(1.4, 2.6, u), mix(46, 28, u), -40, mix(18, 26, u), -16, 58); }, over(t) { caption(t, 0.6, 3, "It's 2 in the morning."); caption(t, 3.2, 6, 'Grandpa is fast asleep.'); } },
-  { dur: 5.5, setup() { hide(); }, update(t) { beans.forEach((b, i) => put(b, -86 + t * 2.3 - i * 2.1, 0, 44 + Math.sin(i) * 0.5, Math.PI / 2, { crouch: true, speed: 2.3 })); cam(beans[0].root.position.x + 2, 1.0, 50, beans[0].root.position.x - 3.5, 1.0, 44, 52); }, over(t) { caption(t, 0.4, 2.8, 'You are very, very small.'); caption(t, 3, 5.5, 'And you are here for his stuff.'); } },
-  { dur: 5, setup() { hide(); }, update(t) { const x = -44 - t * 1.6; put(beans[0], x + 1.5, 0, 30, -Math.PI / 2, { carry: 2, speed: 2 }); put(beans[1], x - 1.5, 0, 30, -Math.PI / 2, { carry: 2, speed: 2 }); P.watch.visible = true; P.watch.position.set(x, 1.15 + Math.sin(t * 9) * 0.06, 30); P.watch.rotation.y = t * 0.4; put(beans[2], x + 5, 0, 31.4, -Math.PI / 2, { carry: 1, speed: 3 }); P.coin.visible = true; P.coin.position.set(x + 4.2, 1.5, 31.4); P.coin.rotation.z = Math.PI / 2; cam(x - 7, 1.5, 33.5, x + 1, 1.0, 30, 50); }, over(t) { caption(t, 0.4, 2.6, 'Grab everything that is not nailed down.'); caption(t, 2.8, 5, 'Heavy loot needs a friend.'); } },
-  { dur: 4.5, setup() { hide(); this.v = null; this.hit = false; }, update(t, dt) {
-      const k = t > 1.3 ? Math.min(1, (t - 1.3) / 0.42) : 0; put(beans[3], -50, 0, 30, Math.PI / 2, k > 0 && k < 1 ? { act: 'swing', actK: k } : { act: t < 1.3 ? '' : 'cheer' }); P.pan.visible = true; const a = beans[3].root.position; P.pan.position.set(a.x + 0.9 + (k > 0.35 ? 0.6 : 0), 1.0, a.z + 0.5); P.pan.rotation.set(0, 0, k < 0.35 ? 0.6 : -1.4 * Math.min(1, (k - 0.35) * 3));
-      if (!this.hit) put(beans[1], -48, 0, 30, -Math.PI / 2, { act: t < 1 ? 'wave' : '', talk: t < 1.2 ? 0.8 : 0 });
-      if (k > 0.45 && !this.hit) { this.hit = true; this.v = { x: 11, y: 10, r: 0, px: -48, py: 0 }; sound.thing('pan', { x: -48, y: 1, z: 30 }); sound.bonk({ x: -48, y: 1, z: 30 }); fx.bonk(-48, 1.2, 30); shake = 0.6; }
-      if (this.v) { const v = this.v; v.y -= 22 * dt; v.px += v.x * dt; v.py += v.y * dt; v.r += dt * 11; if (v.py < 0) { v.py = 0; if (v.y < -3) { v.y *= -0.45; v.x *= 0.7; sound.bonk({ x: v.px, y: 0, z: 30 }); fx.dust(v.px, 0, 30, 6); } else { v.y = 0; v.x *= 0.9; } } put(beans[1], v.px, v.py, 30, -Math.PI / 2, { rag: { rx: v.r, rz: v.r * 0.6 } }); }
-      cam(-44, 1.6, 37.5, -45, 1.5, 30, 56); }, over(t) { caption(t, 0.3, 1.4, 'Work as a team.'); caption(t, 2, 4.5, '...or do not.', '#ff5d73'); } },
-  { dur: 4.5, setup() { hide(); sleepG(); grandpa.state = 'stir'; music = 'stir'; }, update(t) { if (t > 3.4 && grandpa.state !== 'waking') { grandpa.state = 'waking'; grandpa.t = 0; sound.roar(grandpa.mouthPos); } cam(mix(-28, -31, t / 4.5), 37, 6, -40, 36, -16, 42); },
-    over(t) { const m = Math.min(1, t / 3.3), x = W / 2 - 300, y = 110; c2.fillStyle = '#24183a'; c2.beginPath(); c2.roundRect(x - 8, y - 8, 616, 56, 28); c2.fill(); c2.fillStyle = '#fff4dc'; c2.beginPath(); c2.roundRect(x, y, 600, 40, 20); c2.fill(); const g = c2.createLinearGradient(x, 0, x + 600, 0); g.addColorStop(0, '#5fd08a'); g.addColorStop(0.55, '#ffc93c'); g.addColorStop(1, '#ff5d73'); c2.fillStyle = g; c2.beginPath(); c2.roundRect(x, y, 600 * m, 40, 20); c2.fill(); text(m < 0.45 ? '😴' : m < 1 ? '😑' : '😡', y + 20, 60, '#fff', 1 + (m >= 1 ? Math.sin(t * 40) * 0.08 : 0)); c2.save(); c2.restore(); caption(t, 0.3, 3.3, 'He can hear your real microphone.'); } },
-  { dur: 6, setup() { hide(); grandpa.state = 'hunt'; grandpa.x = -40; grandpa.z = -3; grandpa.yaw = 0; grandpa.moving = true; grandpa.target = { x: -60, z: 40 }; house.chairBlock.off = true; music = 'awake'; lit = 1; shake = 1; sound.speak(grandpa.mouthPos, true, 5); }, update(t, dt) {
-      grandpa.x += -2.4 * dt; grandpa.z += 5.2 * dt; grandpa.yaw = Math.atan2(-2.4, 5.2);
-      beans.forEach((b, i) => put(b, -50 - t * 3.6 - i * 2.4 + Math.sin(t * 3 + i) * 0.6, 0, 22 + t * 3.4 + (i % 2) * 2.2, Math.atan2(-3.6, 3.4), { speed: 8.6, sprint: true, scared: 1, talk: 0.9 }));
-      cam(-80, 1.2, 50, -50, mix(14, 10, t / 6), 8, 62); }, over(t) { bubble(t, 0.2, 2.6, 'WHO IS IN MY HOUSE?!'); caption(t, 3, 6, 'Do. Not. Wake. Grandpa.', '#ff5d73'); } },
-  { dur: 7, setup() { hide(); grandpa.x = -54; grandpa.z = 22; grandpa.yaw = Math.atan2(-14, 20); grandpa.moving = false; grandpa.state = 'swat'; grandpa.t = 0; grandpa.swat = { x: -68, z: 42 }; this.done = false; this.popped = false; }, update(t, dt) {
+  // 0: the studio card, over a sleeping giant
+  { dur: 4, setup() { hide(); sleepG(); lit = 0; music = 'sleep'; }, update(t) { cam(-33, 3, 13, -40, 24, -17, 60); }, over(t) { c2.fillStyle = `rgba(16,12,30,${1 - ease((t - 2.6) / 1.2)})`; c2.fillRect(0, 0, W, H); if (t < 3) { text('CAMEL STUDIOS', H / 2 - 30, 64, '#ffc93c', pop(t, 0.4)); text('presents', H / 2 + 44, 34, '#fff', pop(t, 0.9)); } } },
+  // 1: Grandpa, asleep, talking about biscuits
+  { dur: 6.5, setup() { hide(); this.a = false; }, update(t) { const u = ease(t / 6.5); cam(mix(-16, -29, u), mix(1.6, 4, u), mix(22, 11, u), -40, mix(17, 27, u), -17, 58); once(this, 'a', t, 2.6, () => say('dream_0', false)); }, over(t) { caption(t, 0.5, 2.5, "It's 2 in the morning."); caption(t, 2.7, 6.5, 'Grandpa is fast asleep.'); if (t > 3 && t < 6.2) text('"No, Mildred... not the good biscuits."', 150, 40, '#cfd6ff', pop(t, 3), -0.02); } },
+  // 2: in they come
+  { dur: 5.5, setup() { hide(); }, update(t) { beans.forEach((b, i) => put(b, -86 + t * 2.3 - i * 2.1, 0, 52 + Math.sin(i) * 0.5, Math.PI / 2, { crouch: true, speed: 2.3 })); cam(beans[0].root.position.x + 2, 1.0, 58, beans[0].root.position.x - 3.5, 1.0, 52, 52); }, over(t) { caption(t, 0.4, 2.8, 'You are very, very small.'); caption(t, 3, 5.5, 'And you are here for his stuff.'); } },
+  // 3: loot goes over your head
+  { dur: 5, setup() { hide(); }, update(t) { const x = -8 - t * 1.6, z = 50; put(beans[0], x + 0.95, 0, z, -Math.PI / 2, { carry: 3, speed: 2 }); put(beans[1], x - 0.95, 0, z, -Math.PI / 2, { carry: 3, speed: 2 }); overhead(P.watch, [beans[0], beans[1]], x, z); P.watch.rotation.y = Math.PI / 2;
+      put(beans[2], x + 4.6, 0, z + 1.2, -Math.PI / 2, { carry: 3, speed: 3 }); overhead(P.coin, [beans[2]], x + 4.6, z + 1.2); put(beans[3], x + 7.6, 0, z - 0.6, -Math.PI / 2, { carry: 3, speed: 3 }); overhead(P.teeth, [beans[3]], x + 7.6, z - 0.6);
+      cam(x - 6.5, 1.7, z + 4.4, x + 2, 1.5, z, 50); }, over(t) { caption(t, 0.4, 2.6, 'Grab everything that is not nailed down.'); caption(t, 2.8, 5, 'Heavy loot needs a friend.'); } },
+  // 4: or hit your friend with a frying pan
+  { dur: 4.8, setup() { hide(); this.v = null; this.hit = false; }, update(t, dt) {
+      const k = t > 1.3 ? Math.min(1, (t - 1.3) / 0.42) : 0; put(beans[3], -14, 0, 50, Math.PI / 2, k > 0 && k < 1 ? { act: 'swing', actK: k } : t < 1.3 ? { carry: 1 } : { act: 'laugh' }); inFist(P.pan, beans[3]);
+      if (!this.hit) put(beans[1], -12, 0, 50, -Math.PI / 2, { act: t < 1 ? 'wave' : '', talk: t < 1.2 ? 0.8 : 0 });
+      if (k > 0.45 && !this.hit) { this.hit = true; this.v = { x: 11, y: 10, r: 0, px: -12, py: 0 }; sound.thing('pan', { x: -12, y: 1, z: 50 }); sound.bonk({ x: -12, y: 1, z: 50 }); fx.bonk(-12, 1.2, 50); shake = 0.5; }
+      if (this.v) { const v = this.v; v.y -= 22 * dt; v.px += v.x * dt; v.py += v.y * dt; v.r += dt * 11; if (v.py < 0) { v.py = 0; if (v.y < -3) { v.y *= -0.45; v.x *= 0.7; sound.bonk({ x: v.px, y: 0, z: 50 }); fx.dust(v.px, 0, 50, 6); } else { v.y = 0; v.x *= 0.9; } } put(beans[1], v.px, v.py, 50, -Math.PI / 2, { rag: { rx: v.r, rz: v.r * 0.6 } }); }
+      cam(-8, 1.6, 57.5, -9, 1.5, 50, 56); }, over(t) { caption(t, 0.3, 1.4, 'Work as a team.'); caption(t, 2, 4.8, '...or do not.', '#ff5d73'); if (t > 1.5 && t < 2.4) text('BONK!', 250, 110, '#ffc93c', pop(t, 1.5) * 1.1, -0.12); } },
+  // 5: the noise meter fills; one eye opens
+  { dur: 5, setup() { hide(); sleepG(); grandpa.state = 'stir'; music = 'stir'; this.a = this.b = false; }, update(t) { once(this, 'a', t, 0.5, () => { say('mumble_1', false); grandpa.emote('fly'); }); if (t > 3.9 && grandpa.state !== 'waking') { grandpa.state = 'waking'; grandpa.t = 0; sound.roar(grandpa.mouthPos); shake = 0.6; } cam(mix(-20, -24, t / 5), 42, 14, -40, 38, -21, 40); },
+    over(t) { const m = Math.min(1, t / 3.8), x = W / 2 - 300, y = 110; c2.fillStyle = '#24183a'; c2.beginPath(); c2.roundRect(x - 8, y - 8, 616, 56, 28); c2.fill(); c2.fillStyle = '#fff4dc'; c2.beginPath(); c2.roundRect(x, y, 600, 40, 20); c2.fill(); const g = c2.createLinearGradient(x, 0, x + 600, 0); g.addColorStop(0, '#5fd08a'); g.addColorStop(0.55, '#ffc93c'); g.addColorStop(1, '#ff5d73'); c2.fillStyle = g; c2.beginPath(); c2.roundRect(x, y, 600 * m, 40, 20); c2.fill(); text(m < 0.45 ? '😴' : m < 1 ? '😑' : '😡', y + 20, 60, '#fff', 1 + (m >= 1 ? Math.sin(t * 40) * 0.08 : 0)); caption(t, 0.3, 3.8, 'He can hear your real microphone.'); } },
+  // 6: he is up, and he goes round the coffee table like anybody else
+  { dur: 6.5, setup() { hide(); awake(house.nodes.S[0], house.nodes.S[1]); grandpa.target = { x: 8, z: 52 }; grandpa.goTo(-4, 38); music = 'awake'; lit = 1; shake = 0.8; say('wake_0'); }, update(t, dt) {
+      walkG(dt, 7.4); beans.forEach((b, i) => put(b, -7 + t * 3.1 + (i % 2) * 2.2 - i * 0.8 + Math.sin(t * 3 + i) * 0.5, 0, 33 + t * 3.5 - i * 2.2, Math.atan2(3.1, 3.5), { speed: 8.6, sprint: true, scared: 1, talk: 0.9 }));
+      cam(21, 1.3, 65, -12, mix(15, 11, t / 6.5), 28, 62); }, over(t) { bubble(t, 0.2, 2.8, 'WHO IS IN MY HOUSE?!'); caption(t, 3.2, 6.5, 'Do. Not. Wake. Grandpa.', '#ff5d73'); } },
+  // 7: the slipper, and the pump
+  { dur: 7.5, setup() { hide(); awake(-10, 30, Math.atan2(12, 14)); grandpa.state = 'swat'; grandpa.swat = { x: 2, z: 44 }; this.done = this.popped = this.l = false; }, update(t, dt) {
       if (grandpa.state === 'swat' && grandpa.t > 1.7) { grandpa.state = 'hunt'; grandpa.target = null; }
-      const flat = t > 0.95 && t < 5.4; if (t > 0.95 && !this.done) { this.done = true; sound.slam({ x: -68, y: 0, z: 42 }); sound.squish({ x: -68, y: 0, z: 42 }); fx.shock(-68, 0, 42, 5); shake = 1.2; }
-      put(beans[1], t < 0.95 ? -68 + Math.sin(t * 9) * 1.3 : -68, 0, t < 0.95 ? 42 + Math.cos(t * 9) * 1.3 : 42, t * 4, flat ? { flat: true } : t < 0.95 ? { speed: 8, sprint: true, scared: 1 } : { act: 'cheer' });
-      if (t > 2.4) { const x = Math.min(-66.2, -58 - (t - 2.4) * 5); put(beans[0], x, 0, 42.4, -Math.PI / 2, x > -66.3 ? { speed: 7, sprint: true } : { act: 'use', crouch: true }); if (x <= -66.2 && t < 5.4 && Math.floor(t / 0.4) !== Math.floor((t - dt) / 0.4)) { sound.pump({ x: -67, y: 0, z: 42 }, (t - 3.9) / 1.5); beans[1].kick(4); } }
-      if (t > 5.4 && !this.popped) { this.popped = true; sound.pop({ x: -68, y: 1, z: 42 }); fx.confetti(-68, 1, 42, 40, 0.8); beans[1].kick(9); }
-      cam(-73, 1.3, 47.5, -67, mix(1.6, 1.0, t / 2), 42, 58); }, over(t) { caption(t, 0.2, 2.2, 'Watch out for the slipper.', '#ff5d73'); caption(t, 2.6, 5.2, 'Flat friends can be pumped back up.'); caption(t, 5.5, 7, 'Good as new!', '#8fe0a0'); } },
-  { dur: 5, setup() { hide(); grandpa.state = 'hunt'; grandpa.x = -22; grandpa.z = 14; grandpa.moving = true; this.sl = false; P.peel.visible = true; P.peel.position.set(-40, 0.1, 31); }, update(t, dt) {
-      if (!this.sl) { grandpa.x -= 9 * dt; grandpa.z += 8.4 * dt; grandpa.yaw = Math.atan2(-9, 8.4); if (grandpa.x < -39) { this.sl = true; grandpa.state = 'slip'; grandpa.t = 0; grandpa.moving = false; sound.whee(grandpa.mouthPos); setTimeout(() => { sound.crash({ x: -40, y: 1, z: 31 }); shake = 1.6; fx.shock(-40, 0, 31, 9); }, 350); P.peel.visible = false; } }
-      put(beans[2], -60, 0, 44, 2.2, { act: this.sl ? 'cheer' : '', crouch: !this.sl }); put(beans[3], -62.4, 0, 45, 2.2, { act: this.sl ? 'dance' : '', dance: 0, crouch: !this.sl });
-      cam(-68, 2.2, 52, -42, 12, 26, 60); }, over(t) { caption(t, 0.2, 2, 'Banana peels work on everyone.'); bubble(t, 2.2, 5, 'WHOA! MY HIP!'); } },
+      const flat = t > 0.95 && t < 5.9; once(this, 'done', t, 0.95, () => { sound.slam({ x: 2, y: 0, z: 44 }); sound.squish({ x: 2, y: 0, z: 44 }); fx.shock(2, 0, 44, 5); shake = 1; });
+      once(this, 'l', t, 1.5, () => { say('hit_2'); grandpa.emote('laugh'); });
+      put(beans[1], t < 0.95 ? 2 + Math.sin(t * 9) * 1.3 : 2, 0, t < 0.95 ? 44 + Math.cos(t * 9) * 1.3 : 44, t < 0.95 ? t * 4 : 0.8, flat ? { flat: true } : t < 0.95 ? { speed: 8, sprint: true, scared: 1 } : { act: 'cheer' });
+      if (t > 2.9) { const x = Math.max(3.8, 12 - (t - 2.9) * 5); put(beans[0], x, 0, 44.4, -Math.PI / 2, x > 3.9 ? { speed: 7, sprint: true } : { act: 'pump' }); if (x <= 3.8 && t < 5.9 && Math.floor(t / 0.4) !== Math.floor((t - dt) / 0.4)) { sound.pump({ x: 3, y: 0, z: 44 }, (t - 4.4) / 1.5); beans[1].kick(4); } }
+      once(this, 'popped', t, 5.9, () => { sound.pop({ x: 2, y: 1, z: 44 }); fx.confetti(2, 1, 44, 40, 0.8); beans[1].kick(9); });
+      cam(8.4, 1.3, 49.6, 1.6, mix(2.2, 1.2, t / 2), 44, 60); }, over(t) { caption(t, 0.2, 1.4, 'Watch out for the slipper.', '#ff5d73'); bubble(t, 1.5, 3.3, 'FLAT AS A PANCAKE!'); caption(t, 3.4, 5.8, 'Flat friends can be pumped back up.'); caption(t, 6, 7.5, 'Good as new!', '#8fe0a0'); } },
+  // 8: banana
+  { dur: 5.5, setup() { hide(); awake(-12, 8, Math.atan2(20, 36)); grandpa.goTo(10, 48); grandpa.target = { x: 10, z: 48 }; this.sl = false; P.peel.visible = true; P.peel.position.set(1.4, 0.1, 32); }, update(t, dt) {
+      if (!this.sl) { walkG(dt, 11); if (Math.hypot(grandpa.x - 1.4, grandpa.z - 32) < 3.2) { this.sl = true; grandpa.state = 'slip'; grandpa.t = 0; grandpa.moving = false; sound.whee(grandpa.mouthPos); say('slip_0'); setTimeout(() => { sound.crash({ x: 1, y: 1, z: 30 }); shake = 1.3; fx.shock(1, 0, 30, 9); }, 350); P.peel.visible = false; } }
+      put(beans[2], 15, 0, 52, -2.4, this.sl ? { act: 'cheer' } : { crouch: true }); put(beans[3], 17.4, 0, 53.2, -2.4, this.sl ? { act: 'laugh' } : { crouch: true });
+      cam(24, 2.2, 61, 2, 11, 32, 60); }, over(t) { caption(t, 0.2, 2.2, 'Banana peels work on everyone.'); if (this.sl) bubble(t, 0, 5.5, 'WHOA! MY HIP!'); } },
+  // 9: the wardrobe
   { dur: 6, setup() { hide(); sleepG(); lit = 0; music = 'sleep'; this.n = -1; }, update(t) {
-      const n = Math.floor(t / 0.42); if (n !== this.n) { this.n = n; const i = n % 3, old = beans[i]; scene.remove(old.root); beans[i] = new Robber(randomLook()); scene.add(beans[i].root); beans[i].kick(8); sound.pop({ x: -40, y: 1, z: 41 }); }
-      for (let i = 0; i < 3; i++) put(beans[i], -42.2 + i * 2.2, 0, 41, 0, { act: i === 1 ? 'dance' : 'wave', dance: 2 }); beans[3].root.visible = false; key.position.set(-40, 3, 46); key.intensity = 14;
-      cam(-40, 1.25, 46.4, -40, 1.0, 41, 44); }, over(t) { caption(t, 0.3, 3, 'Dress your bean however you like.'); caption(t, 3.2, 6, 'Hats. Capes. A tuxedo. A jetpack.'); } },
-  { dur: 8.5, setup() { hide(); key.position.set(-42, 4, 40); key.intensity = 16; this.s = 0; this.b = false; this.pie = 0; }, update(t, dt) {
+      const n = Math.floor(t / 0.5); if (n !== this.n) { this.n = n; const i = n % 3, old = beans[i]; scene.remove(old.root); beans[i] = new Robber(WARDROBE[n % WARDROBE.length]); scene.add(beans[i].root); beans[i].kick(8); sound.pop({ x: -8, y: 1, z: 46 }); }
+      for (let i = 0; i < 3; i++) put(beans[i], -10.2 + i * 2.2, 0, 46, 0, { act: ['flex', 'dance', 'clap'][i], dance: 6 }); beans[3].root.visible = false; key.position.set(-8, 3, 51); key.intensity = 14;
+      cam(-8, 1.3, 51.4, -8, 1.1, 46, 44); }, over(t) { caption(t, 0.3, 3, 'Dress your bean however you like.'); caption(t, 3.2, 6, 'Hats. Capes. A tuxedo. A jetpack.'); } },
+  // 10: trolling
+  { dur: 8.5, setup() { hide(); heroes(); key.position.set(-6, 4, 52); key.intensity = 16; this.s = 0; this.b = false; this.pie = 0; }, update(t, dt) {
       // a shrink ray, a bunch of balloons, a pot of glue and a cream pie
-      put(beans[0], -47, 0, 34, Math.PI / 2, this.pie === 2 ? { dizzy: true } : { act: t > 0.7 && t < 2.2 ? 'use' : t > 2.6 ? 'cheer' : '' }); P.shrink.visible = t < 5.6; P.shrink.position.set(-46.3, 0.75, 34.5); P.shrink.rotation.set(0, -Math.PI / 2, 0);
-      put(beans[1], -44, 0, 34, -Math.PI / 2, { act: t < 1.2 ? 'wave' : '', stuck: t > 3.2 }); beans[1].root.scale.setScalar(mix(1, 0.45, (t - 1.2) / 0.5));
-      if (t > 1.2 && this.s === 0) { this.s = 1; sound.zap({ x: -44, y: 1, z: 34 }); for (let i = 0; i < 10; i++) fx.sparkle(mix(-46, -44, i / 10), 1.1, 34, 2); beans[1].kick(9); }
-      P.glue.visible = t > 2.6; P.glue.position.set(-44, 0.02, 33.2); if (t > 3.2 && this.s === 1) { this.s = 2; sound.squish({ x: -44, y: 0, z: 34 }); }
-      const up = t > 2.2 ? (t - 2.2) * 1.7 : 0; put(beans[2], -40.8, up, 34.6, 0, t > 2.2 ? { air: true, vy: 1 } : { act: 'wave' }); P.helium.visible = t > 2.2; P.helium.position.set(-40.8, up + 1.5, 34.6); P.helium.rotation.z = Math.sin(t * 3) * 0.2; if (t > 2.2 && !this.b) { this.b = true; sound.balloon({ x: -40.8, y: 1, z: 34.6 }); fx.confetti(-40.8, 2, 34.6, 14, 0.5); }
+      put(beans[0], -11, 0, 46, Math.PI / 2, this.pie === 2 ? { dizzy: true } : { act: t > 0.5 && t < 2.2 ? 'point' : t > 2.6 ? 'laugh' : '' }); if (t < 5.6) { inFist(P.shrink, beans[0], false); P.shrink.rotation.set(0, -Math.PI / 2, 0); }
+      put(beans[1], -7.6, 0, 46, -Math.PI / 2, t > 3.2 ? { stuck: true } : { act: t < 1.2 ? 'wave' : 'cry' }); beans[1].root.scale.setScalar(mix(1, 0.45, (t - 1.2) / 0.5));
+      if (t > 1.2 && this.s === 0) { this.s = 1; sound.zap({ x: -7.6, y: 1, z: 46 }); for (let i = 0; i < 10; i++) fx.sparkle(mix(-10, -7.6, i / 10), 1.1, 46, 2); beans[1].kick(9); }
+      P.glue.visible = t > 2.6; P.glue.position.set(-8.9, 0.02, 46.9); if (t > 3.2 && this.s === 1) { this.s = 2; sound.squish({ x: -7.6, y: 0, z: 46 }); }
+      const up = t > 2.2 ? (t - 2.2) * 1.7 : 0; put(beans[2], -4.4, up, 46.6, 0, t > 2.2 ? { air: true, vy: 1 } : { act: 'wave' }); P.helium.visible = t > 2.2; P.helium.position.set(-4.4, up + beans[2].topY + 0.25, 46.6); P.helium.rotation.z = Math.sin(t * 3) * 0.2; if (t > 2.2 && !this.b) { this.b = true; sound.balloon({ x: -4.4, y: 1, z: 46.6 }); fx.confetti(-4.4, 2, 46.6, 14, 0.5); }
       // and here comes the pie
-      const u = (t - 5.6) / 0.55; if (t > 4.4 && t < 5.6) put(beans[3], -37.4, 0, 36.5, -1.9, { act: 'throw', actK: (t - 4.4) / 1.2 * 0.4 }); else if (t >= 5.6) put(beans[3], -37.4, 0, 36.5, -1.9, { act: 'cheer' });
-      if (t > 4.4 && this.pie < 2) { P.pie.visible = true; if (u < 0) P.pie.position.set(-37.9, 1.9, 36.2); else { P.pie.position.set(mix(-37.9, -47, u), 1.9 + Math.sin(Math.min(1, u) * Math.PI) * 1.2 - u * 0.6, mix(36.2, 34.3, u)); P.pie.rotation.z = u * 5; this.pie = 1; if (u >= 1) { this.pie = 2; sound.squish({ x: -47, y: 1.3, z: 34 }); fx.shards(-47, 1.4, 34.3, 30, [1, 1, 0.95]); beans[0].kick(10); shake = 0.4; } } }
-      if (this.pie === 2) { P.pie.visible = true; P.pie.position.set(-46.9, 1.25, 34.45); P.pie.rotation.set(-Math.PI / 2, 0, 0); P.pie.scale.setScalar(0.62); P.shrink.visible = false; }
-      cam(mix(-43, -42.4, t / 8.5), 1.5, 41, -42.6, mix(1.1, 1.9, (t - 2.2) / 4), 34, 52); }, over(t) { caption(t, 0.2, 2.1, 'Troll your friends.'); caption(t, 2.3, 5.3, 'Shrink rays. Balloons. Pots of glue.'); caption(t, 5.6, 8.5, 'And a cream pie to the face.', '#ff5d73'); } },
-  { dur: 8, setup() { hide(); for (const b of beans) b.root.scale.setScalar(1); P.pie.scale.setScalar(0.7); music = 'sleep'; }, update(t) { beans.forEach((b, i) => put(b, -45 + i * 3.2, 0, 36, 0, { act: 'dance', dance: i })); cam(-40, mix(1.6, 2.6, t / 8), mix(44, 52, ease(t / 8)), -40, mix(4, 13, ease(t / 8)), 0, 56); key.position.set(-40, 4, 43); key.intensity = 16; },
+      const u = (t - 5.6) / 0.55; if (t > 4.4 && t < 5.6) put(beans[3], -1, 0, 48.5, -1.9, { act: 'throw', actK: (t - 4.4) / 1.2 * 0.4 }); else if (t >= 5.6) put(beans[3], -1, 0, 48.5, -1.9, { act: 'laugh' });
+      if (t > 4.4 && this.pie < 2) { if (u < 0) { inFist(P.pie, beans[3], false); P.pie.rotation.set(0, 0, 0); this.from = P.pie.position.clone(); } else { P.pie.position.set(mix(this.from.x, -11, u), this.from.y + Math.sin(Math.min(1, u) * Math.PI) * 1.0 + (1.45 - this.from.y) * u, mix(this.from.z, 46.3, u)); P.pie.rotation.z = u * 5; this.pie = 1; if (u >= 1) { this.pie = 2; sound.squish({ x: -11, y: 1.3, z: 46 }); fx.shards(-11, 1.4, 46.3, 30, [1, 1, 0.95]); beans[0].kick(10); shake = 0.3; } } }
+      if (this.pie === 2) { P.pie.visible = true; P.pie.position.set(-10.9, 1.25, 46.5); P.pie.rotation.set(-Math.PI / 2, 0, 0); P.pie.scale.setScalar(0.62); P.shrink.visible = false; }
+      cam(mix(-7, -6.4, t / 8.5), 1.5, 53, -6.6, mix(1.1, 1.9, (t - 2.2) / 4), 46, 52); }, over(t) { caption(t, 0.2, 2.1, 'Troll your friends.'); caption(t, 2.3, 5.3, 'Shrink rays. Balloons. Pots of glue.'); caption(t, 5.6, 8.5, 'And a cream pie to the face.', '#ff5d73'); } },
+  // 11: the title, with a dance
+  { dur: 8, setup() { hide(); for (const b of beans) b.root.scale.setScalar(1); P.pie.scale.setScalar(0.7); music = 'sleep'; }, update(t) { beans.forEach((b, i) => put(b, -7.5 + 0.9 * 3.1 * (i - 1.5), 0, 50 - 0.44 * 3.1 * (i - 1.5), 0.455, { act: 'dance', dance: [0, 4, 6, 7][i] })); const u = ease(t / 8); cam(mix(-3.5, -2.4, u), mix(1.5, 2.6, u), mix(58, 62.5, u), mix(-9, -26, u), mix(2.2, 12, u), mix(47, 18, u), 56); key.position.set(-4, 4, 56); key.intensity = 16; },
     over(t) { c2.fillStyle = `rgba(16,12,30,${0.35 * Math.min(1, t)})`; c2.fillRect(0, 0, W, H); text("DON'T WAKE", 250, 92, '#ffc93c', pop(t, 0.4), -0.05); text('GRANDPA', 380, 170, '#b79bff', pop(t, 0.8), -0.05); if (t > 2) text('2 to 4 players  ·  proximity voice chat  ·  ragdolls', 520, 40, '#fff', pop(t, 2)); if (t > 3) text('Free, from Camel Studios', 590, 36, '#8fe0a0', pop(t, 3)); c2.fillStyle = `rgba(0,0,0,${ease((t - 7) / 1)})`; c2.fillRect(0, 0, W, H); } }
 ];
 let idx = -1, st = 0, playing = false, onDone = null;
 function frame(dt) {
   time += dt;
+  if (!playing && window.__trailer?.hold) { const [i, t] = window.__trailer.hold; SHOTS[i].update(t, 0); }
   if (playing) { st += dt; if (idx < 0 || st >= SHOTS[idx].dur) { idx++; st = 0; if (idx >= SHOTS.length) { playing = false; onDone?.(); return; } SHOTS[idx].setup(); } SHOTS[idx].update(st, dt); }
   for (const b of beans) if (b.root.visible) { F.set(Math.sin(b.root.rotation.y), 0, Math.cos(b.root.rotation.y)); L.set(camera.position.x - b.root.position.x, 0.3, camera.position.z - b.root.position.z).normalize(); b.update(dt, { fwd: F, look: b.st.rag || b.st.flat ? null : L, ...b.st }); }
   grandpa.update(dt, beans.filter(b => b.root.visible).map(b => b.root.position));
@@ -106,12 +140,13 @@ function frame(dt) {
   sound.update({ dt, playing, grandpa: grandpa.mouthPos, tv: house.tv, state: music === 'awake' ? 'awake' : music === 'stir' ? 'stir' : grandpa.asleep ? 'sleep' : 'awake', fear: 0 });
   renderer.render(scene, camera);
   c2.drawImage(gl, 0, 0, W, H); c2.fillStyle = '#000'; c2.fillRect(0, 0, W, 64); c2.fillRect(0, H - 64, W, 64);          // the film, with cinema bars
+  if (!playing && window.__trailer?.hold) SHOTS[window.__trailer.hold[0]].over?.(window.__trailer.hold[1]);
   if (playing && idx >= 0) { SHOTS[idx].over?.(st); const d = SHOTS[idx].dur, a = st < 0.12 ? 1 - st / 0.12 : st > d - 0.12 ? (st - d + 0.12) / 0.12 : 0; if (a > 0 && idx > 0) { c2.fillStyle = `rgba(0,0,0,${a})`; c2.fillRect(0, 0, W, H); } }
 }
 let last = performance.now(); const loop = now => { requestAnimationFrame(loop); const dt = Math.min(0.05, (now - last) / 1000); last = now; frame(dt); }; requestAnimationFrame(loop);
-cam(-40, 3, 40, -40, 24, -18, 50); sleepG();
-window.__trailer = { ready: true, total: SHOTS.reduce((a, s) => a + s.dur, 0), chunks: [], done: false,
-  async record() { await actx.resume(); const stream = out.captureStream(60); for (const tr of dest.stream.getAudioTracks()) stream.addTrack(tr); const rec = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9,opus', videoBitsPerSecond: 9e6, audioBitsPerSecond: 160000 }), parts = [];
+cam(-33, 3, 13, -40, 24, -17, 60); sleepG();
+window.__trailer = { ready: true, seek(i, t = 0) { playing = false; idx = i; st = 0; SHOTS[i].setup(); for (let k = 0; k < Math.round(t * 30); k++) { st += 1 / 30; SHOTS[i].update(st, 1 / 30); for (const b of beans) if (b.root.visible) b.update(1 / 30, { fwd: F.set(Math.sin(b.root.rotation.y), 0, Math.cos(b.root.rotation.y)), look: null, ...b.st }); grandpa.update(1 / 30, []); } this.hold = [i, st]; }, total: SHOTS.reduce((a, s) => a + s.dur, 0), chunks: [], done: false,
+  async record() { await actx.resume(); const stream = out.captureStream(60); for (const tr of dest.stream.getAudioTracks()) stream.addTrack(tr); const rec = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9,opus', videoBitsPerSecond: 4.5e6, audioBitsPerSecond: 160000 }), parts = [];
     rec.ondataavailable = e => { if (e.data.size) parts.push(e.data); }; const fin = new Promise(r => { rec.onstop = r; }); rec.start(500); idx = -1; st = 0; playing = true; await new Promise(r => { onDone = r; }); await new Promise(r => setTimeout(r, 400)); rec.stop(); await fin;
     const buf = new Uint8Array(await new Blob(parts, { type: 'video/webm' }).arrayBuffer()); this.size = buf.length; this.chunks = []; for (let i = 0; i < buf.length; i += 600000) { let s = ''; const part = buf.subarray(i, i + 600000); for (let j = 0; j < part.length; j += 8192) s += String.fromCharCode.apply(null, part.subarray(j, j + 8192)); this.chunks.push(btoa(s)); } this.done = true; return this.chunks.length; } };
 </script></body></html>

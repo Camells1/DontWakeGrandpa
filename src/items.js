@@ -86,6 +86,8 @@ export class Items {
   }
   toss(it, p, v, spin) { it.holders = []; it.state = 'free'; it.rest = false; it.x = p[0]; it.y = p[1]; it.z = p[2]; it.vx = v[0]; it.vy = v[1]; it.vz = v[2]; it.sx = spin?.[0] ?? (Math.random() - 0.5) * 12; it.sz = spin?.[2] ?? (Math.random() - 0.5) * 12; it.sy = (Math.random() - 0.5) * 8; it.age = 0; }
   // holdersPos: id -> { x, y, z, yaw, pitch, swing (0..1), flat }. Moves held things to their holders and lets loose things fall.
+  // How far below its middle the underside of a thing is (when it is the right way up)
+  bottom(it) { if (it.bot == null) { let lo = 0; it.obj.traverse(o => { if (o.isMesh && o.geometry && !o.userData.outline) { o.geometry.boundingBox || o.geometry.computeBoundingBox(); lo = Math.min(lo, o.geometry.boundingBox.min.y); } }); it.bot = -lo; } return it.bot; }
   update(dt, who) {
     const H = this.house;
     for (const it of this.list.values()) {
@@ -101,14 +103,16 @@ export class Items {
             const fwd = 0.85 + hit * 0.35, side = 0.5 - hit * 0.36, drop = (it.tool ? 0.62 : 0.36) - wind * 0.16 + hit * 0.1;
             it.x = p.x + fx * fwd * cp + rx * side; it.z = p.z + fz * fwd * cp + rz * side; it.y = p.y + p.eye - drop + sp * fwd;
             it.ry = p.yaw + Math.PI; it.rx = it.tool ? 0.3 - wind * 1.2 + hit * 1.7 - p.pitch : -p.pitch; it.rz = it.tool ? -0.2 : 0; it.fp = k;
-          } else { // in a friend's hand: out to the right, and it goes with the swing
-            const sw = p.swing || 0, wind = sw > 0 && sw < 0.35 ? sw / 0.35 : 0, hit = sw >= 0.35 ? Math.min(1, (sw - 0.35) * 3.4) : 0, reach = Math.min(0.85 + hit * 0.7, H.rayDist(p.x, p.y + 1.2, p.z, fx, 0, fz, 2.4) - 0.35);
-            it.x = p.x + fx * reach + rx * (0.42 - hit * 0.3); it.z = p.z + fz * reach + rz * (0.42 - hit * 0.3); it.y = p.y + (it.tool ? 0.75 : 0.95) + wind * 0.5 - hit * 0.25 + Math.sin(p.pitch) * 0.5;
-            it.ry = p.yaw + Math.PI; it.rx = it.tool ? 0.35 - wind * 1.3 + hit * 1.9 : 0; it.rz = it.tool ? -0.25 : 0;
+          } else if (it.tool && p.hand) { // in a friend's fist: it stands up out of the hand, so it goes exactly where the arm swings it
+            const a = p.arm, dx = -rz * a.y, dy = rz * a.x - rx * a.z, dz = rx * a.y, dl = Math.hypot(dx, dy, dz) || 1;       // right x arm
+            it.x = p.hand.x + dx / dl * 0.12; it.y = p.hand.y + dy / dl * 0.12; it.z = p.hand.z + dz / dl * 0.12; it.ry = Math.atan2(dx, dz); it.rx = Math.acos(clamp(dy / dl, -1, 1)); it.rz = 0;
+          } else { // loot is carried over the head, both hands up, like an ant with a crumb
+            const k = Math.min(1, dt * 16); it.x += (p.x - it.x) * k; it.z += (p.z - it.z) * k; it.y += ((p.top ?? p.y + 1.9) + this.bottom(it) + 0.03 - it.y) * k; it.ry = p.yaw + Math.PI; it.rx += (0 - it.rx) * k; it.rz += (0 - it.rz) * k;
           }
         } else { // two or more beans: it rides between them
           let x = 0, y = 0, z = 0; for (const p of hs) { x += p.x; y += p.y; z += p.z; } x /= hs.length; y /= hs.length; z /= hs.length;
-          it.x += (x - it.x) * Math.min(1, dt * 14); it.z += (z - it.z) * Math.min(1, dt * 14); it.y += (y + 1.05 - it.y) * Math.min(1, dt * 14); it.ry = Math.atan2(hs[1].x - hs[0].x, hs[1].z - hs[0].z) + Math.PI / 2; it.rx = it.rz = 0;
+          const top = Math.max(...hs.map(p => p.top ?? p.y + 1.9));                                 // up over all their heads, so it never goes through anybody
+          it.x += (x - it.x) * Math.min(1, dt * 14); it.z += (z - it.z) * Math.min(1, dt * 14); it.y += (top + this.bottom(it) - 0.12 - it.y) * Math.min(1, dt * 14); it.ry = Math.atan2(hs[1].x - hs[0].x, hs[1].z - hs[0].z) + Math.PI / 2; it.rx = it.rz = 0;
         }
       } else if (!it.rest && it.state === 'free') {
         // ---- falling, bouncing, rolling

@@ -82,6 +82,7 @@ export class Robber {
     if (L.mouth === 2) flat(mesh(ballG(r * 0.12, 8), pink, this.smile, r * 0.05, -r * 0.27, r * 0.02)).scale.set(1, 1.3, 0.5);
     if (L.mouth === 3) for (const s of [-1, 1]) flat(mesh(new THREE.BoxGeometry(r * 0.11, r * 0.16, r * 0.04), white, this.smile, s * r * 0.065, -r * 0.27, r * 0.02));
     this._face(L, r, dark, white); this._hat(L, r * 1.08, H - headY - r * 0.06); this._back(L, r, H);
+    { this.hat.updateWorldMatrix(true, true); const bb = new THREE.Box3().setFromObject(this.hat), y0 = this.hat.getWorldPosition(new THREE.Vector3()).y; this.topY = h + (bb.isEmpty() ? 0 : Math.max(0, bb.max.y - y0)); }   // top of the hat: loot is carried above it
     // ---- noodle arms with cartoon gloves, stubby legs with big shoes
     this.arms = []; this.legs = []; const ar = h * 0.3, cP = toon(hex(L.pantsC));
     for (const s of [-1, 1]) {
@@ -200,11 +201,15 @@ export class Robber {
       W.aL = [-1.25 + (moving ? Math.sin(ph) * 0.12 : 0), 0.12]; W.aR = [-1.25 - (moving ? Math.sin(ph) * 0.12 : 0), 0.12]; W.hy = Math.sin(t * 1.6) * 0.5; W.brow = 0.25; W.roll = moving ? Math.sin(ph) * 0.05 : 0;
     } else { // standing about: breathe, look round, and now and then scratch or yawn
       W.hy = Math.sin(t * 0.7) * 0.25 + Math.sin(t * 0.23) * 0.2;
-      if ((this.fid -= dt) < 0) { this.fid = 5 + Math.random() * 7; this.fidT = 1.8; this.fidKind = Math.floor(Math.random() * 3); }
+      if ((this.fid -= dt) < 0) { this.fid = 4 + Math.random() * 6; this.fidT = 1.8; this.fidKind = Math.floor(Math.random() * 7); }
       if (this.fidT > 0) { this.fidT -= dt; const f = Math.sin(clamp(this.fidT / 1.8, 0, 1) * Math.PI);
         if (this.fidKind === 0) { W.aR = [-2.7 * f, 0.5 * f + 0.2]; W.hp = 0.15 * f; W.roll = Math.sin(t * 14) * 0.03 * f; }             // scratch your head
         else if (this.fidKind === 1) { W.mouth = f; W.aL = [-2.4 * f, 0.9 * f + 0.2]; W.aR = [-2.4 * f, 0.9 * f + 0.2]; W.stretch = 0.08 * f; W.hp = -0.3 * f; }   // a big yawn and stretch
-        else { W.hy = Math.sin(this.fidT * 5) * 0.9 * f; W.tp = 0.1 * f; }                                                                 // check both ways
+        else if (this.fidKind === 2) { W.hy = Math.sin(this.fidT * 5) * 0.9 * f; W.tp = 0.1 * f; }                                           // check both ways
+        else if (this.fidKind === 3) { W.aL = [-0.95 * f, -0.55 * f + 0.2]; W.aR = [-0.95 * f, -0.55 * f + 0.2]; W.by = Math.abs(Math.sin(t * 9)) * h * 0.012 * f; W.brow = -0.3 * f; }   // arms folded, tapping a foot
+        else if (this.fidKind === 4) { W.aL = [-1.35 * f, -0.5 * f + 0.2]; W.hp = 0.4 * f; W.hy = 0.35 * f; W.brow = 0.3 * f; }               // what time is it?
+        else if (this.fidKind === 5) { W.aL = [-2.85 * f, 0.35]; W.roll = -0.28 * f; W.stretch = 0.05 * f; }                                    // a stretch to one side
+        else { W.by = Math.abs(Math.sin(this.fidT * 12)) * h * 0.05 * f; W.aL = [-0.2, 0.2 + 0.6 * f]; W.aR = [-0.2, 0.2 + 0.6 * f]; W.eyeShake = 2 * f; }   // a shiver
       }
       if (this.idleT > 18) { W.by = -h * 0.2; W.tp = 0.5; W.hp = 0.5 + Math.sin(t * 1.2) * 0.08; W.mouth = 0.25 + Math.sin(t * 1.2) * 0.2; W.aL = [-0.4, 0.3]; W.aR = [-0.4, 0.3]; }   // nodding off
     }
@@ -212,19 +217,33 @@ export class Robber {
       if (st.vy > 0) { W.stretch = 0.14; W.aL = [-2.8, 0.4]; W.aR = [-2.8, 0.4]; W.legAmp = 0; }
       else { W.aL = [-1.6 + Math.sin(t * 24) * 0.8, 1.2]; W.aR = [-1.6 + Math.cos(t * 24) * 0.8, 1.2]; W.mouth = this.airT > 0.5 ? 1 : 0.3; W.pitch = 0.12; W.eyeShake = 2.5; }
     }
-    if (st.carry === 1) { W.aL = [-1.25, -0.25]; W.aR = [-1.25, -0.25]; W.tp += -0.08; }
+    if (st.carry === 1) { W.aR = [-1.25 + (moving ? Math.sin(ph) * 0.06 : 0), 0.08]; }                                                    // something in your fist, held up ready
+    else if (st.carry === 3) { const wob = Math.sin(t * 7) * 0.04; W.aL = [-3.0 + wob, 0.16]; W.aR = [-3.0 - wob, 0.16]; W.hp = -0.12; W.brow = 0.2; W.roll += moving ? Math.sin(ph) * 0.03 : 0; }   // over your head with it
     else if (st.carry === 2) { W.aL = [-1.0, -0.2]; W.aR = [-1.0, -0.2]; W.tp += -0.35; W.pitch -= 0.1; W.mouth = 0.5 + Math.sin(t * 6) * 0.2; W.brow = -0.4; W.roll += Math.sin(t * 7) * 0.05; }   // heave!
     if (act === 'swing') { const wind = k < 0.35 ? k / 0.35 : 0, hit = k >= 0.35 ? (k - 0.35) / 0.65 : 0; W.aR = [k < 0.35 ? -2.9 * wind : -2.9 + 3.9 * Math.min(1, hit * 2.4), 0.3]; W.yaw = k < 0.35 ? -0.6 * wind : -0.6 + 1.5 * Math.min(1, hit * 2.4) - hit * 0.9; W.pitch += hit > 0 ? 0.3 * Math.sin(hit * Math.PI) : -0.12 * wind; W.mouth = 0.8; W.brow = -0.6; W.stretch = hit > 0 ? 0.1 * Math.sin(hit * Math.PI) : 0; W.aL = [0.4, 0.6]; }
     else if (act === 'throw') { W.aR = [k < 0.4 ? -3.0 * (k / 0.4) : -3.0 + 3.6 * Math.min(1, (k - 0.4) * 4), 0.2]; W.pitch += k < 0.4 ? -0.25 * (k / 0.4) : 0.3 * Math.sin((k - 0.4) / 0.6 * Math.PI); W.mouth = 0.6; }
     else if (act === 'use') { W.aR = [-1.7, -0.1]; W.hp = 0.15; }
     else if (act === 'shush') { W.aR = [-2.25, -0.75]; W.tp += 0.25; W.hp = -0.1; W.brow = 0.5; W.mouth = 0.14; W.aL = [0.1, 0.6]; }
     else if (act === 'wave') { W.aR = [-2.8, 0.5 + Math.sin(t * 12) * 0.5]; W.roll += Math.sin(t * 6) * 0.06; W.mouth = 0.5; }
+    else if (act === 'pump') { const u = Math.sin(t * 16); W.aL = [-1.0 + u * 0.5, -0.12]; W.aR = [-1.0 + u * 0.5, -0.12]; W.by = -h * 0.07 + u * h * 0.035; W.tp += 0.3; W.mouth = 0.5; W.brow = -0.4; }
+    else if (act === 'point') { W.aR = [-1.57, 0.02]; W.aL = [0.2, 0.45]; W.pitch += 0.06; W.brow = -0.35; W.mouth = 0.35; }
+    else if (act === 'laugh') { const u = Math.abs(Math.sin(t * 14)); W.by += u * h * 0.05; W.aL = [-0.75, -0.3]; W.aR = [-0.75, -0.3]; W.hp = -0.45; W.tp += -0.12; W.mouth = 0.6 + u * 0.4; W.roll += Math.sin(t * 14) * 0.05; W.brow = 0.4; }
+    else if (act === 'clap') { const u = Math.sin(t * 18) * 0.5 + 0.5; W.aL = [-1.4, -0.75 + u * 0.4]; W.aR = [-1.4, -0.75 + u * 0.4]; W.by += Math.abs(Math.sin(t * 9)) * h * 0.03; W.mouth = 0.5; W.brow = 0.3; }
+    else if (act === 'facepalm') { W.aR = [-2.35, -0.72]; W.hp = 0.38; W.tp += 0.14; W.brow = 0.45; W.aL = [0.1, 0.3]; W.hy = Math.sin(t * 3) * 0.12; }
+    else if (act === 'flex') { const u = Math.sin(t * 5) * 0.12; W.aL = [-2.1 + u, 0.95]; W.aR = [-2.1 - u, 0.95]; W.stretch = 0.07; W.brow = -0.6; W.mouth = 0.3; W.roll += Math.sin(t * 2.5) * 0.12; }
+    else if (act === 'sit') { W.legX = -1.5; W.by = -this.legL * 0.85; W.tp += -0.12; W.aL = [0.45, 0.4]; W.aR = [0.45, 0.4]; W.hy = Math.sin(t * 0.9) * 0.4; }
+    else if (act === 'bow') { const u = Math.sin(t * 2.8) * 0.5 + 0.5; W.tp += 0.5 + u * 0.6; W.aR = [-0.3, -0.75]; W.aL = [0.5, 0.5]; W.hp = 0.2; }
+    else if (act === 'cry') { W.aL = [-2.45 + Math.sin(t * 20) * 0.08, -0.62]; W.aR = [-2.45 - Math.sin(t * 20) * 0.08, -0.62]; W.by = -h * 0.05; W.tp += 0.2; W.brow = 0.7; W.mouth = 0.3 + Math.abs(Math.sin(t * 5)) * 0.6; W.roll += Math.sin(t * 21) * 0.025; }
     else if (act === 'cheer') { W.aL = [-2.9, 0.6 + Math.sin(t * 16) * 0.2]; W.aR = [-2.9, 0.6 + Math.cos(t * 16) * 0.2]; W.by += Math.abs(Math.sin(t * 9)) * h * 0.14; W.mouth = 1; W.stretch = 0.06; }
     else if (act === 'dance') { const d = st.dance | 0;
       if (d === 0) { W.roll = Math.sin(t * 9) * 0.32; W.by += Math.abs(Math.sin(t * 9)) * h * 0.1; W.aL = [-2.6 + Math.sin(t * 9) * 0.5, 0.7]; W.aR = [-2.6 - Math.sin(t * 9) * 0.5, 0.7]; }                    // the wiggle
       else if (d === 1) { W.yaw = t * 7; W.aL = [-1.57, 1.4]; W.aR = [-1.57, 1.4]; W.by += Math.abs(Math.sin(t * 7)) * h * 0.06; }                                                                               // the spinny one
       else if (d === 2) { const s = Math.sin(t * 8); W.aL = [s * 0.9, 0.35 + s * 0.5]; W.aR = [-s * 0.9, 0.35 - s * 0.5]; W.roll = -s * 0.22; W.yaw = s * 0.35; }                                                  // the floss
-      else { W.pitch = Math.sin(t * 6) * 0.5; W.by += -h * 0.1 + Math.abs(Math.cos(t * 6)) * h * 0.12; W.aL = [-2.9, 0.3]; W.aR = [-2.9, 0.3]; W.legAmp = 0.7; this.phase += dt * 12; }                         // the worm, sort of
+      else if (d === 3) { W.pitch = Math.sin(t * 6) * 0.5; W.by += -h * 0.1 + Math.abs(Math.cos(t * 6)) * h * 0.12; W.aL = [-2.9, 0.3]; W.aR = [-2.9, 0.3]; W.legAmp = 0.7; this.phase += dt * 12; }             // the worm, sort of
+      else if (d === 4) { const b = Math.sin(t * 6) > 0, c = Math.sin(t * 3) > 0; W.aL = [-1.57, b ? 0.8 : 0.2]; W.aR = [b ? 0 : -1.57, 0.2]; W.yaw = c ? 0.45 : -0.45; W.hy = b ? 0.7 : -0.7; W.by += b ? 0 : -h * 0.03; }   // the robot
+      else if (d === 5) { W.yaw = Math.sin(t * 10) * 0.65; W.by += -h * 0.07 + Math.sin(t * 5) * h * 0.04; W.aL = [-1.0 + Math.sin(t * 10) * 0.4, 0.45]; W.aR = [-1.0 - Math.sin(t * 10) * 0.4, 0.45]; }             // the twist
+      else if (d === 6) { const u = Math.sin(t * 14); W.aL = [-0.25, 0.85 + u * 0.4]; W.aR = [-0.25, 0.85 + u * 0.4]; W.hp = Math.sin(t * 7) * 0.4; W.by += Math.abs(Math.sin(t * 7)) * h * 0.05; W.tp += 0.2; }      // the chicken
+      else { const b = Math.sin(t * 4) > 0; W.aR = b ? [-2.7, 0.45] : [-0.4, -0.6]; W.aL = [0.1, 0.55]; W.roll = Math.sin(t * 8) * 0.14; W.yaw = b ? 0.3 : -0.3; W.by += Math.abs(Math.sin(t * 8)) * h * 0.04; }      // disco
       W.mouth = 0.6; W.hy = Math.sin(t * 4.5) * 0.5;
     }
     if (st.covered && scared > 0.3 && !moving && !act) { W.aL = [-2.7, -0.55]; W.aR = [-2.7, -0.55]; W.by = -h * 0.16; W.tp = 0.55; W.roll = Math.sin(t * 40) * 0.035; W.mouth = 0.25; W.brow = 0.6; W.eyeShake = 3; }   // hands over your head, shaking
@@ -251,7 +270,7 @@ export class Robber {
     for (const a of this.arms) { const w = a.side < 0 ? W.aL : W.aR; a.x += (w[0] - a.x) * Math.min(1, dt * (act === 'swing' ? 30 : 14)); a.z += (w[1] * a.side - a.z) * Math.min(1, dt * 14); a.g.rotation.set(a.x, 0, a.z); }
     for (const l of this.legs) {
       const a = ph + (l.side > 0 ? 0 : Math.PI), lift = W.legAmp ? Math.max(0, Math.sin(a)) : 0, swing = W.legAmp ? Math.cos(a) : 0;
-      l.g.position.y = l.rest.y + lift * h * W.lift - this.by * 0.9; l.g.rotation.x = rag ? Math.sin(t * 15 + l.side) * 1.2 : st.air ? Math.sin(t * 20 + l.side * 2) * 0.5 : swing * W.legAmp; l.g.rotation.z = rag ? l.side * 0.5 : 0;
+      l.g.position.y = l.rest.y + lift * h * W.lift - this.by * 0.9; l.g.rotation.x = rag ? Math.sin(t * 15 + l.side) * 1.2 : st.air ? Math.sin(t * 20 + l.side * 2) * 0.5 : W.legX ?? swing * W.legAmp; l.g.rotation.z = rag ? l.side * 0.5 : 0;
     }
     // everything that dangles, flaps, spins or floats
     if (this.prop) this.prop.rotation.y += dt * (5 + sp * 4 + talk * 40 + (st.air ? 30 : 0));
