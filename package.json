@@ -1,0 +1,53 @@
+{
+  "name": "dont-wake-grandpa",
+  "version": "0.1.0",
+  "author": "Camel Studios",
+  "description": "Don't Wake Grandpa: tiny bean burglars, one sleeping giant, and he can hear your microphone. A Camel Studios game.",
+  "main": "electron/main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "serve": "node tools/serve.js 5240",
+    "icon": "electron tools/make-icon.js",
+    "build": "electron-builder --win --publish never",
+    "web": "node tools/web-build.js",
+    "postinstall": "node tools/vendor.js",
+    "prebuild": "node tools/vendor.js"
+  },
+  "dependencies": {
+    "peerjs": "^1.5.4",
+    "three": "^0.169.0"
+  },
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.camelstudios.dontwakegrandpa",
+    "productName": "Dont Wake Grandpa",
+    "copyright": "© 2026 Camel Studios",
+    "files": [
+      "electron/**/*",
+      "src/**/*",
+      "vendor/**/*",
+      "assets/icon.png",
+      "assets/sfx/**/*",
+      "index.html",
+      "node_modules/three/build/three.module.js",
+      "node_modules/peerjs/dist/peerjs.min.js",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "artifactName": "DontWakeGrandpa-Setup.${ext}"
+    }
+  }
+}

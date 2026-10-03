@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Don't Wake Grandpa</title>
+<link rel="icon" href="assets/icon.png">
+<style>
+:root { --ink: #24183a; --paper: #fff4dc; --sun: #ffc93c; --leaf: #5fd08a; --berry: #ff5d73; --sky: #5bc8ff; --plum: #7a5fb5; --r: 18px; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #150f26; color: var(--ink); font: 800 16px/1.3 "Arial Rounded MT Bold", Bahnschrift, "Segoe UI", sans-serif; user-select: none; }
+canvas#c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+.hide { display: none !important; }
+button, input, select { font: inherit; color: inherit; }
+.card { background: var(--paper); border: 4px solid var(--ink); border-radius: var(--r); box-shadow: 0 6px 0 var(--ink); }
+.btn { display: block; width: 100%; padding: 11px 16px; margin: 8px 0; background: var(--sun); border: 4px solid var(--ink); border-radius: 16px; box-shadow: 0 5px 0 var(--ink); cursor: pointer; font-size: 18px; transition: transform .06s, box-shadow .06s, background .1s; }
+.btn:hover { background: #ffdb6e; transform: translateY(-2px) rotate(-0.6deg); box-shadow: 0 7px 0 var(--ink); }
+.btn:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--ink); }
+.btn.green { background: var(--leaf); } .btn.green:hover { background: #86e3a8; } .btn.blue { background: var(--sky); } .btn.blue:hover { background: #8adaff; }
+.btn.purple { background: #b79bff; } .btn.purple:hover { background: #cbb6ff; } .btn.red { background: var(--berry); color: #fff; } .btn.small { font-size: 15px; padding: 7px 12px; }
+.btn:disabled { background: #c9c3b0; cursor: default; transform: none; box-shadow: 0 5px 0 var(--ink); color: #6d6a60; }
+.field { width: 100%; padding: 10px 14px; border: 4px solid var(--ink); border-radius: 14px; background: #fff; font-size: 18px; outline: none; }
+.screen { position: fixed; inset: 0; display: flex; align-items: center; justify-content: flex-end; padding-right: 6vw; background: linear-gradient(90deg, rgba(21, 15, 38, 0) 35%, rgba(21, 15, 38, .55)); }
+.logo { position: fixed; left: 4vw; top: 5vh; margin: 0; color: #fff; text-shadow: 0 6px 0 var(--ink), 4px 0 0 var(--ink), -4px 0 0 var(--ink), 0 -4px 0 var(--ink); line-height: .9; font-size: 62px; transform: rotate(-4deg); }
+.logo span { display: block; } .logo .a { color: var(--sun); font-size: 44px; } .logo .b { color: var(--berry); } .logo .c { color: #b79bff; font-size: 84px; } .logo small { display: block; font-size: 17px; color: #ffe9a8; margin-top: 12px; text-shadow: 0 2px 0 var(--ink); transform: rotate(2deg); }
+.panel { width: 380px; padding: 20px; max-height: 92vh; overflow: auto; }
+.panel h2 { margin: 0 0 10px; font-size: 24px; }
+.row { display: flex; gap: 8px; align-items: center; } .row > * { flex: 1; }
+.msg { min-height: 20px; color: #c0303f; font-size: 14px; margin-top: 6px; } .note { font-size: 13px; color: #6a6480; font-weight: 600; }
+.part { display: flex; align-items: center; gap: 6px; margin: 5px 0; font-size: 14px; } .part > span { width: 118px; } .part b { flex: 1; text-align: center; padding: 4px 0; border: 3px solid var(--ink); border-radius: 10px; background: #fff; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.part button { width: 34px; height: 32px; border: 3px solid var(--ink); border-radius: 10px; background: var(--sun); cursor: pointer; box-shadow: 0 3px 0 var(--ink); padding: 0; } .part button:active { transform: translateY(3px); box-shadow: none; }
+.sw { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--ink); display: inline-block; }
+#loading { position: fixed; inset: 0; background: #150f26; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; z-index: 50; gap: 16px; font-size: 20px; }
+#loadbar { width: 340px; height: 26px; border: 4px solid #fff; border-radius: 14px; overflow: hidden; } #loadbar i { display: block; height: 100%; width: 0; background: var(--sun); }
+#room-code { font-size: 54px; letter-spacing: 8px; text-align: center; background: var(--ink); color: var(--sun); border-radius: 14px; padding: 4px 0; user-select: text; }
+.slot { display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin: 6px 0; border: 3px solid var(--ink); border-radius: 12px; background: #fff; } .slot.empty { opacity: .45; border-style: dashed; }
+.dot { width: 20px; height: 28px; border-radius: 10px; border: 3px solid var(--ink); flex: none; }
+/* HUD */
+#hud { position: fixed; inset: 0; pointer-events: none; }
+#meter { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); width: 430px; padding: 8px 14px 10px; display: flex; align-items: center; gap: 12px; }
+#meter .face { font-size: 40px; line-height: 1; width: 48px; text-align: center; transition: transform .1s; }
+#meter .mid { flex: 1; } #meter b { font-size: 15px; display: flex; justify-content: space-between; }
+#mbar { position: relative; height: 16px; border: 3px solid var(--ink); border-radius: 9px; background: #fff; overflow: hidden; margin-top: 3px; } #mbar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #5fd08a, #ffc93c 55%, #ff5d73); transition: width .12s; }
+#mbar u { position: absolute; top: 0; bottom: 0; left: 45%; width: 3px; background: var(--ink); opacity: .5; }
+#meter.stir { background: #fff0b8; animation: shake .25s infinite; } #meter.awake { background: #ffb0ba; animation: shake .12s infinite; }
+@keyframes shake { 50% { transform: translateX(-50%) rotate(-0.7deg) scale(1.01); } }
+#team { position: absolute; top: 12px; left: 12px; width: 205px; }
+.mate { display: flex; align-items: center; gap: 8px; padding: 5px 9px; margin-bottom: 6px; font-size: 14px; border-width: 3px; box-shadow: 0 4px 0 var(--ink); border-radius: 12px; }
+.mate.flat { background: #d9d2c4; } .mate .mic { opacity: 0; margin-left: auto; } .mate.talk .mic { opacity: 1; } .mate.talk { transform: scale(1.05) rotate(-1deg); background: #fffbe0; }
+#quota { position: absolute; top: 12px; right: 12px; width: 240px; padding: 9px 12px; transform: rotate(1.2deg); }
+#quota h3 { margin: 0; font-size: 15px; display: flex; justify-content: space-between; } #quota .big { font-size: 26px; } #quota .big small { font-size: 15px; color: #6a6480; }
+#qbar { height: 12px; border: 3px solid var(--ink); border-radius: 8px; background: #fff; overflow: hidden; margin-top: 4px; } #qbar i { display: block; height: 100%; width: 0; background: var(--leaf); }
+#qnote { font-size: 12.5px; font-weight: 700; margin-top: 5px; color: #1f8a4c; min-height: 16px; }
+#you { position: absolute; left: 12px; bottom: 12px; width: 240px; padding: 8px 12px; }
+.bar { display: flex; align-items: center; gap: 8px; font-size: 14px; margin: 3px 0; } .bar span { width: 22px; text-align: center; }
+.bar div { flex: 1; height: 13px; border: 3px solid var(--ink); border-radius: 8px; background: #fff; overflow: hidden; } .bar i { display: block; height: 100%; }
+#stam i { background: var(--sky); } #loud i { background: var(--berry); transition: width .08s; }
+#mic { position: absolute; left: 264px; bottom: 16px; padding: 4px 12px; font-size: 14px; } #mic.on { background: var(--berry); color: #fff; transform: scale(1.1) rotate(-3deg); }
+#carry { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); padding: 6px 16px; font-size: 15px; background: #ffe9a8; text-align: center; }
+#carry small { display: block; font-size: 12px; color: #6a6480; font-weight: 700; }
+#prompt { position: absolute; top: 58%; left: 50%; transform: translateX(-50%); padding: 7px 16px; font-size: 17px; white-space: nowrap; }
+kbd { background: var(--ink); color: #fff; border-radius: 7px; padding: 1px 8px; margin-right: 6px; font: inherit; }
+#hold { height: 7px; border-radius: 4px; background: #e4dcc2; margin-top: 5px; overflow: hidden; } #hold i { display: block; height: 100%; width: 0; background: var(--leaf); }
+#cross { position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px; border-radius: 50%; background: #fff; border: 2px solid var(--ink); }
+#charge { position: absolute; left: 50%; top: 53%; width: 90px; height: 9px; margin-left: -45px; border: 2px solid var(--ink); border-radius: 6px; background: #fff; overflow: hidden; } #charge i { display: block; height: 100%; background: var(--sun); width: 0; }
+#bubble { position: absolute; top: 96px; left: 50%; transform: translateX(-50%) rotate(-1deg); padding: 8px 18px; font-size: 20px; background: #fff; max-width: 60vw; text-align: center; animation: pop .25s; }
+#bubble.shout { background: var(--berry); color: #fff; font-size: 28px; }
+#toasts { position: absolute; right: 12px; bottom: 12px; width: 300px; display: flex; flex-direction: column-reverse; gap: 6px; }
+.toast { padding: 7px 12px; font-size: 14px; border-width: 3px; box-shadow: 0 4px 0 var(--ink); border-radius: 12px; animation: pop .25s; } .toast.bad { background: #ffd2d8; } .toast.good { background: #d4f7df; } .toast.egg { background: #f1dcff; }
+@keyframes pop { from { transform: scale(.6) rotate(-6deg); opacity: 0; } }
+#banner { position: absolute; top: 26%; left: 0; right: 0; text-align: center; color: #fff; text-shadow: 0 5px 0 var(--ink), 3px 0 0 var(--ink), -3px 0 0 var(--ink), 0 -3px 0 var(--ink); animation: pop .4s; }
+#banner h1 { margin: 0; font-size: 70px; transform: rotate(-2deg); } #banner p { margin: 6px 0 0; font-size: 23px; color: var(--sun); }
+#alarm { position: absolute; inset: 0; box-shadow: inset 0 0 200px 70px rgba(255, 40, 70, .8); opacity: 0; }
+#pie { position: absolute; inset: 0; opacity: 0; background: radial-gradient(ellipse at 50% 45%, #fffdf2 0 38%, #fff6d8 52%, rgba(255, 246, 216, .85) 68%, transparent 82%), radial-gradient(circle at 20% 80%, #fffdf2 0 12%, transparent 13%), radial-gradient(circle at 82% 22%, #fffdf2 0 9%, transparent 10%), radial-gradient(circle at 76% 78%, #fffdf2 0 14%, transparent 15%); }
+#flat { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 130px; color: #fff; text-shadow: 0 4px 0 var(--ink), 3px 0 0 var(--ink), -3px 0 0 var(--ink), 0 -3px 0 var(--ink); background: radial-gradient(transparent 45%, rgba(40, 0, 30, .55)); }
+#flat h1 { font-size: 58px; margin: 0; color: var(--sun); transform: rotate(-3deg); } #flat p { font-size: 19px; margin: 6px; }
+#chat { position: absolute; left: 12px; bottom: 96px; width: 330px; font-size: 14px; font-weight: 700; color: #fff; text-shadow: 0 2px 0 var(--ink), 1px 0 0 var(--ink), -1px 0 0 var(--ink); } #chat div { margin: 2px 0; }
+#chat-in { pointer-events: auto; margin-top: 6px; font-size: 15px; padding: 6px 10px; }
+#help { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 12.5px; font-weight: 700; color: #fff; text-shadow: 0 2px 0 var(--ink), 1px 0 0 var(--ink), -1px 0 0 var(--ink); line-height: 1.75; opacity: .85; }
+#help kbd { border-radius: 6px; padding: 0 6px; margin-right: 3px; }
+.over { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(21, 15, 38, .6); }
+.over .panel { width: 500px; }
+.up { display: flex; align-items: center; gap: 10px; padding: 8px; margin: 6px 0; border: 3px solid var(--ink); border-radius: 12px; background: #fff; }
+.up .ic { font-size: 28px; } .up .tx { flex: 1; font-size: 13px; font-weight: 600; } .up .tx b { font-size: 15px; display: block; font-weight: 800; } .up .btn { width: 92px; margin: 0; }
+.stats { display: grid; grid-template-columns: 1fr auto; gap: 3px 14px; font-size: 15px; margin: 10px 0; }
+label.set, div.set { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0; font-size: 15px; } label.set input[type=range] { width: 170px; } label.set select { padding: 4px 8px; border: 3px solid var(--ink); border-radius: 10px; background: #fff; }
+</style>
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js", "three/addons/": "./vendor/three-addons/" } }</script>
+<script src="./node_modules/peerjs/dist/peerjs.min.js"></script>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="hud" class="hide">
+  <div id="alarm"></div><div id="pie"></div>
+  <div id="meter" class="card"><div class="face" id="mface">😴</div><div class="mid"><b><span id="mlabel">Fast asleep</span><span id="clock">12:00 AM</span></b><div id="mbar"><i></i><u></u></div></div></div>
+  <div id="bubble" class="card hide"></div>
+  <div id="team"></div>
+  <div id="quota" class="card"><h3><span id="qnight">Night 1</span><span>💰 the swag</span></h3><div class="big"><span id="qhave">$0</span> <small>/ <span id="qneed">$120</span></small></div><div id="qbar"><i></i></div><div id="qnote"></div></div>
+  <div id="you" class="card"><div class="bar" id="stam"><span>👟</span><div><i></i></div></div><div class="bar" id="loud"><span>🔊</span><div><i></i></div></div></div>
+  <div id="mic" class="card">🎤 <span id="mic-text"></span></div>
+  <div id="cross"></div><div id="charge" class="hide"><i></i></div>
+  <div id="prompt" class="card hide"><span id="prompt-text"></span><div id="hold"><i></i></div></div>
+  <div id="carry" class="card hide"></div>
+  <div id="banner" class="hide"><h1 id="banner-title"></h1><p id="banner-sub"></p></div>
+  <div id="flat" class="hide"><h1>YOU'RE A PANCAKE</h1><p id="flat-tip">A friend can pump you back up. You can still wriggle about.</p></div>
+  <div id="chat"><div id="chat-log"></div><input id="chat-in" class="field hide" maxlength="120" placeholder="Say something..."></div>
+  <div id="toasts"></div>
+  <div id="help"><kbd>WASD</kbd>move <kbd>Ctrl</kbd>tiptoe (silent) <kbd>Shift</kbd>run (loud)<br><kbd>E</kbd>grab / pump a flat friend <kbd>Q</kbd>put down<br><kbd>Click</kbd>whack / use <kbd>Right click</kbd>throw (hold to aim)<br><kbd>F</kbd>torch <kbd>G</kbd>dance <kbd>T</kbd>shush <kbd>Z</kbd>wave<br><kbd id="k-pttKey">V</kbd>talk <kbd id="k-radioKey">B</kbd>radio <kbd>H</kbd>hide this</div>
+</div>
+
+<div id="shop-over" class="over hide"><div class="card panel"><h2 id="shop-title">Night done!</h2><div class="stats" id="shop-stats"></div><p class="note">Upgrades are shared by the whole crew. Money: <b id="shop-money" style="color:#1f8a4c;font-size:17px"></b></p><div id="shop-list"></div><button class="btn green" id="btn-next">Next night</button><div class="msg" id="shop-msg"></div></div></div>
+<div id="fail-over" class="over hide"><div class="card panel"><h2 id="fail-title" style="color:#c0303f">Rumbled!</h2><p id="fail-text" style="font-weight:600"></p><button class="btn green" id="btn-retry">Try that night again</button><button class="btn small red" data-leave>Give up</button><div class="msg" id="fail-msg"></div></div></div>
+<div id="win-over" class="over hide"><div class="card panel" style="width:560px"><h1 style="margin:0;text-align:center;color:#1f8a4c;font-size:44px">THE PERFECT CRIME</h1><p style="font-weight:600">Five nights, one very confused old man, and a mouse hole stuffed with everything he owns. In the morning Grandpa blames the cat.</p><div class="stats" id="win-stats"></div><button class="btn green" data-leave>Back to the menu</button></div></div>
+<div id="pause-over" class="over hide"><div class="card panel"><h2>⏸ Having a breather</h2><p class="note">The house does not pause. Grandpa can still hear you.</p><button class="btn green" id="btn-resume">Back to it</button><button class="btn blue" id="btn-settings2">Settings</button><button class="btn red" data-leave>Leave</button></div></div>
+
+<div id="menu" class="screen hide">
+  <h1 class="logo"><span class="a">DON'T WAKE</span><span class="c">GRANDPA</span><small>Tiny beans. One sleeping giant. He can hear your microphone.</small></h1>
+  <div class="card panel" id="play-panel">
+    <h2>Sneak in</h2>
+    <input id="name" class="field" maxlength="14" placeholder="Your bean's name">
+    <button class="btn purple" id="btn-dress">👕 Dress your bean</button>
+    <button class="btn green" id="btn-host">Host a heist</button>
+    <div class="row"><input id="join-code" class="field" maxlength="5" placeholder="CODE" style="text-transform:uppercase;text-align:center;letter-spacing:4px"><button class="btn blue" id="btn-join" style="margin:0">Join</button></div>
+    <button class="btn small" id="btn-solo" style="margin-top:14px">Go alone (brave)</button>
+    <div class="row"><button class="btn small" id="btn-settings">Settings</button><button class="btn small red" id="btn-quit">Quit</button></div>
+    <div class="msg" id="menu-msg"></div>
+    <div class="note">A Camel Studios game &middot; v<span id="ver"></span></div>
+  </div>
+  <div class="card panel hide" id="dress-panel">
+    <h2>Dress your bean</h2>
+    <div id="dress-list"></div>
+    <div class="row"><button class="btn small blue" id="btn-random">🎲 Surprise me</button><button class="btn small" id="btn-plain">Plain</button></div>
+    <button class="btn green" id="btn-dress-done">Looks good</button>
+  </div>
+</div>
+
+<div id="lobby" class="screen hide">
+  <div class="card panel">
+    <h2>The mouse hole</h2>
+    <p class="note">Give this code to your friends:</p>
+    <div id="room-code">-----</div>
+    <div id="lobby-list" style="margin-top:12px"></div>
+    <button class="btn green" id="btn-start">Start the heist</button>
+    <button class="btn small red" data-leave>Leave</button>
+    <div class="msg" id="lobby-msg"></div>
+  </div>
+</div>
+
+<div id="settings-over" class="over hide" style="z-index:40"><div class="card panel"><h2>Settings</h2>
+  <label class="set">Volume <input type="range" id="set-vol" min="0" max="100"></label>
+  <label class="set">Mouse speed <input type="range" id="set-sens" min="20" max="250"></label>
+  <label class="set">Graphics <select id="set-quality"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
+  <label class="set">Voice chat <select id="set-voice"><option value="ptt">Push to talk</option><option value="vox">Voice activation</option><option value="open">Always on</option></select></label>
+  <label class="set">Voice activation sensitivity <input type="range" id="set-vox" min="0" max="100"></label>
+  <div class="set">Push to talk key <button class="btn small blue" id="bind-pttKey" style="width:170px;margin:0">V</button></div>
+  <div class="set">Radio key (everyone hears you) <button class="btn small blue" id="bind-radioKey" style="width:170px;margin:0">B</button></div>
+  <label class="set">Grandpa can hear my microphone <select id="set-ears"><option value="1">Yes (the proper way)</option><option value="0">No</option></select></label>
+  <p class="note">Your microphone is only measured for loudness on your own PC. Nothing is recorded. Graphics changes apply after a restart.</p>
+  <button class="btn small" data-close>Done</button></div></div>
+
+<div id="loading"><div style="font-size:44px;color:#ffc93c;transform:rotate(-3deg)">DON'T WAKE GRANDPA</div><div id="loadbar"><i></i></div><div id="loadtext">Tucking Grandpa in...</div></div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>

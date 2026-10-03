@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>DWG model viewer</title>
+<style>html,body{margin:0;height:100%;background:#1b1630;overflow:hidden}canvas{display:block;width:100%;height:100%}#t{position:fixed;left:8px;top:8px;color:#fff;font:12px monospace}</style>
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js", "three/addons/": "./vendor/three-addons/" } }</script>
+</head><body><canvas id="c"></canvas><div id="t">loading</div>
+<script type="module">
+// Developer viewer: the beans, Grandpa, every item and the house, so they can be looked at and photographed.
+import * as THREE from 'three';
+import { House } from './src/house.js';
+import { Robber, unpackLook, defaultLook } from './src/beans.js';
+import { Grandpa } from './src/grandpa.js';
+import { itemGeo } from './src/items.js';
+import { ITEMS } from './src/config.js';
+import { toyMat } from './src/materials.js';
+import { toonUniforms, addOutline } from './src/toon.js';
+try {
+const canvas = document.querySelector('#c'), renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.toneMapping = THREE.NeutralToneMapping; renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x2b2360);
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 800);
+const hemi = new THREE.HemisphereLight(0xdfe8ff, 0x8a7a9a, 1.5), sun = new THREE.DirectionalLight(0xfff0d8, 2.2); sun.position.set(-40, 90, 60); sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096);
+Object.assign(sun.shadow.camera, { left: -110, right: 110, top: 110, bottom: -110, near: 10, far: 300 }); sun.shadow.bias = -0.001; sun.shadow.normalBias = 0.1; scene.add(hemi, sun, sun.target);
+const house = new House(scene), grandpa = new Grandpa(scene, house);
+// a stage out in the middle of the rug for the line-up
+const beans = [], F = new THREE.Vector3(0, 0, 1);
+const poses = [{}, { act: 'wave' }, { speed: 3 }, { act: 'cheer' }, {}, { act: 'shush' }, { act: 'dance', dance: 0 }, {}, { act: 'wave', talk: 0.8 }, { air: true, vy: 2 }, { act: 'dance', dance: 2 }, { crouch: true, speed: 2 }];
+const D = defaultLook(0), LOOKS = [
+  { body: 0, top: 8, topA: 5, topB: 8, pants: 2, pantsC: 11 }, { body: 1, hat: 2, hatC: 11, face: 1, top: 5, topA: 11, topB: 4 }, { body: 2, hat: 3, hatC: 5, top: 2, topA: 8, topB: 4, back: 3, backC: 4, mouth: 2 }, { body: 3, hat: 6, back: 2, backC: 4, eyes: 1, top: 10, topA: 6, topB: 3 },
+  { body: 4, top: 4, topA: 5, hat: 8, hatC: 10, mouth: 3 }, { body: 5, hat: 9, top: 1, topA: 8, face: 2, back: 1, backC: 0, pants: 1, pantsC: 4 }, { body: 6, shape: 2, hat: 11, face: 6, top: 9, topA: 10 }, { body: 7, shape: 1, hat: 5, hatC: 11, face: 5, top: 5, topA: 11, topB: 4 },
+  { body: 8, shape: 3, hat: 12, hatC: 2, face: 7, top: 6, topA: 2, topB: 8, back: 4 }, { body: 9, shape: 4, eyes: 3, hat: 7, top: 7, back: 7, backC: 4 }, { body: 10, hat: 10, hatC: 6, face: 4, mouth: 1, top: 3, topA: 15, topB: 8, pants: 1, pantsC: 4 }, { body: 13, face: 8, top: 2, topA: 8, topB: 11, hat: 1, hatC: 11, back: 6, eyes: 4 }
+].map(l => unpackLook({ ...D, ...l }));
+poses.forEach((p, i) => { const b = new Robber(LOOKS[i]); b.root.position.set(-51 + (i % 6) * 4.4, 0, 38 - Math.floor(i / 6) * 5); scene.add(b.root); beans.push([b, p]); });
+const items = []; Object.keys(ITEMS).forEach((k, i) => { const m = new THREE.Group(), mm = new THREE.Mesh(itemGeo(k), toyMat); mm.castShadow = true; m.add(mm); addOutline(m, 0.0024); m.position.set(-6 + (i % 10) * 4.2, ITEMS[k].tool ? 0.1 : 0.6, -30 + Math.floor(i / 10) * 5); if (ITEMS[k].tool) m.rotation.x = -0.25; scene.add(m); items.push(m); });
+const TROLL = Object.keys(ITEMS).filter(k => ITEMS[k].troll); TROLL.forEach((k, i) => { const m = new THREE.Group(), mm = new THREE.Mesh(itemGeo(k), toyMat); mm.castShadow = true; m.add(mm); addOutline(m, 0.0024); m.position.set(40 + (i % 5) * 4.6, 0.05, 54 + Math.floor(i / 5) * 5); scene.add(m); items.push(m); });
+const views = {
+  trolls: [[49.2, 8.5, 69], [49.2, 0.8, 55.5]],
+  beans: [[-40, 3.2, 46.5], [-40, 0.9, 36]], beans2: [[-44.4, 1.6, 42.6], [-44.4, 1.0, 38]], beans3: [[-35.6, 1.6, 42.6], [-35.6, 1.0, 38]], beans4: [[-44.4, 1.6, 37.6], [-44.4, 1.0, 33]], beans5: [[-35.6, 1.6, 37.6], [-35.6, 1.0, 33]], grandpa: [[-40, 26, 22], [-40, 20, -18]], 
+  items: [[13, 13, 2], [13, 0, -21]], face: [[-33, 37, 2], [-40, 36, -16]], lap: [[-22, 22, 14], [-40, 24, -16]], room: [[60, 52, 62], [-30, 6, -6]], kitchen: [[-10, 40, 60], [56, 8, -6]], mouse: [[-74, 2.0, 46], [-40, 16, -14]], awake: [[-40, 14, 44], [-40, 24, -4]]
+};
+let cur = 'beans', mode = 'sleep', time = 0, last = performance.now();
+window.__v = { view(n) { cur = n; }, wake() { mode = 'awake'; grandpa.state = 'hunt'; grandpa.x = -40; grandpa.z = -3; grandpa.target = { x: -40, z: 30 }; grandpa.house.chairBlock.off = true; }, swat() { grandpa.state = 'swat'; grandpa.t = 0.6; grandpa.swat = { x: -40, z: 9 }; grandpa.onEvent = () => {}; }, stir() { grandpa.state = 'stir'; }, sleep() { grandpa.reset(); mode = 'sleep'; }, grandpa, house, beans, renderer };
+const loop = now => {
+  requestAnimationFrame(loop); const dt = Math.min(0.05, (now - last) / 1000); last = now; time += dt;
+  const W = canvas.clientWidth, H = canvas.clientHeight; if (canvas.width !== W || canvas.height !== H) { renderer.setSize(W, H, false); camera.aspect = W / H; camera.updateProjectionMatrix(); } toonUniforms.uAspect.value = camera.aspect;
+  const [p, l] = views[cur]; camera.position.set(...p); camera.lookAt(...l);
+  for (const [b, st] of beans) b.update(dt, { fwd: F, look: new THREE.Vector3(camera.position.x - b.root.position.x, 0, camera.position.z - b.root.position.z).normalize(), ...st });
+  for (const m of items) m.rotation.y += dt * 0.8;
+  if (grandpa.state === 'swat') grandpa.t = 0.6 + (time % 1.2) * 0.9;
+  grandpa.update(dt, [{ x: -40, y: 1, z: 30 }]);
+  renderer.render(scene, camera);
+};
+requestAnimationFrame(loop); document.querySelector('#t').textContent = '';
+} catch (e) { console.error(e); document.querySelector('#t').textContent = 'ERROR ' + (e.stack || e); }
+</script></body></html>
