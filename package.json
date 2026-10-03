@@ -1,6 +1,6 @@
 {
   "name": "dont-wake-grandpa",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "author": "Camel Studios",
   "description": "Don't Wake Grandpa: tiny bean burglars, one sleeping giant, and he can hear your microphone. A Camel Studios game.",
   "main": "electron/main.js",

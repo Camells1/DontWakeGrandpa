@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu } = require('electron');
 const path = require('path');
 
 function createWindow() {
@@ -17,6 +17,10 @@ function createWindow() {
     if (input.key === 'F12' && !app.isPackaged) win.webContents.toggleDevTools();
   });
 }
+
+// No application menu. The default one quietly adds Ctrl+W (close the window), Ctrl+R (reload) and Ctrl+M (minimise),
+// and in this game Ctrl is tiptoe and W is forwards: creeping up on Grandpa closed the game.
+Menu.setApplicationMenu(null);
 
 // Fast path for WebGL; real local addresses for WebRTC so friends on the same Wi-Fi connect directly
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
